@@ -1,0 +1,160 @@
+/* Tokens copied from docs/design/AirHome.dc.html. Light is the default; Asphalt is the dark theme. */
+:root,
+.t {
+  --bg: #F5F6F7;
+  --sf: #FFFFFF;
+  --ink: #101418;
+  --mut: #57616B;
+  --rule: #E2E5E9;
+  --ac: #0B6E7F;
+  --acs: #DDF0F3;
+  --warn: #A8480A;
+  --warns: #FCEBDD;
+  --on: #FFFFFF;
+  color-scheme: light;
+}
+.t.dark {
+  --bg: #1F2225;
+  --sf: #2A2E32;
+  --ink: #F2F4F5;
+  --mut: #B6BDC3;
+  --rule: #41474D;
+  --ac: #67D0DC;
+  --acs: #23444A;
+  --warn: #F2A766;
+  --warns: #46321F;
+  --on: #0D1E21;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: #F5F6F7;
+}
+body:has(.t.dark) {
+  background: #1F2225;
+}
+
+.app {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Geist Variable', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a { color: var(--ac); }
+a:hover { color: var(--ink); }
+input, select { font: inherit; color: var(--ink); background: var(--sf); }
+input[type=range], input[type=checkbox] { accent-color: var(--ac); }
+:focus-visible { outline: 3px solid var(--ac); outline-offset: 2px; }
+button:focus-visible { position: relative; z-index: 1; }
+
+.mono { font-family: 'Geist Mono Variable', ui-monospace, monospace; }
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule);
+}
+.site-header__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 32px;
+}
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+}
+.brand:hover { color: var(--ink); }
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  background: var(--sf);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 4px;
+}
+.pill {
+  padding: 8px 16px;
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.pill:hover { color: var(--ink); background: var(--bg); }
+.pill[aria-current='page'],
+.pill[aria-current='page']:hover {
+  background: var(--ac);
+  color: var(--on);
+  font-weight: 600;
+}
+.theme-toggle {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--mut);
+  border-radius: 999px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.page {
+  flex: 1 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.page h1 {
+  margin: 0 0 8px;
+  font-size: clamp(30px, 4.4vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+.lede { margin: 0; font-size: 18px; color: var(--mut); max-width: 800px; }
+
+.card {
+  background: var(--sf);
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.card h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+
+.site-footer { border-top: 1px solid var(--rule); }
+.site-footer__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--mut);
+}

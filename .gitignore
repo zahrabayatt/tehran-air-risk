@@ -9,3 +9,5 @@ test-results/
 playwright-report/
 .claude/
 .pytest_cache/
+web/public/data/model.json
+web/public/data/predictions.json

@@ -340,7 +340,7 @@ def test_full_history_scale_builds_fast():
     t0 = time.perf_counter()
     ds = build_dataset(hourly, labels)
     elapsed = time.perf_counter() - t0
-    assert len(ds) > 12 * 1500
+    assert len(ds) > 12 * 1450          # 48 summer-time issue days (to 2022-09-21) give no row
     assert elapsed < 30
 
 
@@ -470,3 +470,42 @@ def test_module_has_lab_markers_for_the_site():
     for name in ("build_row", "split_by_time", "zscore"):
         assert f"# lab:{name}" in source
     assert source.count("# endlab") >= 3
+
+
+# ---------------------------------------------------------------- daylight saving era
+
+def test_issue_days_on_iran_summer_time_are_dropped_by_both_paths():
+    # Iran kept +04:30 summer time until 2022-09-21. On those days the 08:00 UTC stamp is 12:30
+    # local, past the 12:00 cutoff, so no row may be issued.
+    hourly = make_hourly(start="2022-09-10", days=25)
+    ds = build_dataset(hourly, daily_labels(hourly))
+    assert len(ds) > 0
+    assert min(ds["day"]) == dt.date(2022, 9, 22)
+    for d in (dt.date(2022, 9, 12), dt.date(2022, 9, 21)):
+        assert build_row(hourly, "west-tehran", d) is None
+    assert build_row(hourly, "west-tehran", dt.date(2022, 9, 22)) is not None
+    for _, expect in ds.iterrows():
+        assert build_row(hourly, expect["cell_id"], expect["day"]) is not None
+
+
+def test_on_standard_time_marks_only_plus_0330_days():
+    days = [dt.date(2022, 8, 5), dt.date(2022, 9, 21), dt.date(2022, 9, 22), dt.date(2024, 6, 1)]
+    assert features.on_standard_time(days).tolist() == [False, False, True, True]
+
+
+# ---------------------------------------------------------------- scaling guards
+
+def test_zscore_treats_a_tiny_sigma_as_one():
+    X = np.array([[0.1 + 0.2, 1.0], [0.3, 2.0], [0.3, 3.0]])     # first column differs by float noise only
+    mu, sigma = zscore_fit(X)
+    assert sigma[0] == 1.0
+    assert np.isfinite(zscore_apply(X, mu, sigma)).all()
+    assert np.abs(zscore_apply(X, mu, np.array([1e-13, 1.0]))[:, 0]).max() < 1e-12
+
+
+def test_zscore_rejects_nan_sigma():
+    X = np.array([[1.0, 2.0], [np.nan, 3.0], [2.0, 4.0]])
+    with pytest.raises(ValueError, match="sigma"):
+        zscore_fit(X)
+    with pytest.raises(ValueError, match="sigma"):
+        zscore_apply(np.ones((2, 2)), np.zeros(2), np.array([1.0, np.nan]))

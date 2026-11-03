@@ -697,7 +697,11 @@ def stage_profile():
         "python training/verify_sources.py profile  # regenerate this file from data/raw/verify_*.json\n```\n")
     out = ROOT / "docs" / "DATA_PROFILE.md"
     out.parent.mkdir(exist_ok=True)
-    out.write_text("\n".join(L) + "\n", encoding="utf-8")
+    text = "\n".join(L) + "\n"
+    # The "Live vs history" section is measured by `python -m pipeline.compare_live`, not here: keep it.
+    from pipeline.compare_live import extract_section, splice
+    kept = extract_section(out.read_text(encoding="utf-8")) if out.exists() else None
+    out.write_text(splice(text, kept) if kept else text, encoding="utf-8")
     print("wrote", out)
 
 

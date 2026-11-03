@@ -109,6 +109,73 @@ Using the Single Runs path would cut the labelled history from 1,552 days to abo
 
 **Decision, per the Task 1 rule: use today's weather only.** Same-day temperature, humidity, wind speed and precipitation (labelled hours `00:00` to `11:00`, up to the cutoff) come from the Historical Forecast API with `models=ecmwf_ifs`. They are populated since at least 2021-01-05, so the whole pollutant history is covered. They are stitched first hours of runs, the same kind of value a live call returns for past hours, so training and live inputs should match (Task 5 must confirm this against a live call). Boundary layer height exists only from 2024-09-01 with holes and is **excluded**. Tomorrow's weather is not an input: the spec's "tomorrow's forecast weather" becomes "today's weather up to the cutoff". The Single Runs path stays available as a later experiment on the shorter window.
 
+<!-- live-vs-history:begin -->
+## Live vs history
+
+Measured on 2026-11-03T13:30:27Z by `python -m pipeline.compare_live` (all 12 cells; every number below is computed from live responses, nothing typed in). The daily pipeline fetches its inputs live; the model was trained on values fetched earlier. Differences are absolute, in the variable's own unit (ug/m3 for pollutants; degrees C, percent, km/h and mm for weather).
+
+### Weather: live forecast API against Historical Forecast API
+
+Same 12 pre-cutoff stamps (21:00 UTC on D-1 to 08:00 UTC on D) for D = 2026-10-30, 2026-10-31, 2026-11-01, 2026-11-02, 2026-11-03; both with `models=ecmwf_ifs`, fetched in the same minute. The deployed model does not use weather (its features are `pm2_5_mean`, `pm2_5_max`, `pm2_5_last`, `season_sin`, `season_cos`), so this is informational. Historical Forecast API nulls in those hours: 0 of 2,880.
+
+| Variable | Hours compared | Mean abs. difference | Max abs. difference | Mean level |
+|---|---|---|---|---|
+| temperature_2m | 720 | 0.000 | 0.000 | 11.19 |
+| relative_humidity_2m | 720 | 0.000 | 0.000 | 68.69 |
+| wind_speed_10m | 720 | 0.000 | 0.000 | 4.94 |
+| precipitation | 720 | 0.000 | 0.000 | 0.10 |
+
+### Pollutants: Air Quality API fetched now against the history cache
+
+Overlap: UTC days 2026-10-27 to 2026-11-02 (the cache ends 2026-11-02 23:00:00+00:00), `domains=cams_global`, every overlapping hour.
+
+| Variable | Hours compared | Mean abs. difference | Max abs. difference | Mean level |
+|---|---|---|---|---|
+| pm2_5 | 2,016 | 0.000 | 0.000 | 20.94 |
+| pm10 | 2,016 | 0.000 | 0.000 | 28.17 |
+| nitrogen_dioxide | 2,016 | 0.000 | 0.000 | 47.07 |
+| sulphur_dioxide | 2,016 | 0.000 | 0.000 | 22.01 |
+| carbon_monoxide | 2,016 | 0.000 | 0.000 | 329.02 |
+| ozone | 2,016 | 0.000 | 0.000 | 53.15 |
+
+Only the 12 pre-cutoff hours of each issue day (the hours the model sees):
+
+| Variable | Hours compared | Mean abs. difference | Max abs. difference | Mean level |
+|---|---|---|---|---|
+| pm2_5 | 864 | 0.000 | 0.000 | 23.37 |
+| pm10 | 864 | 0.000 | 0.000 | 29.79 |
+| nitrogen_dioxide | 864 | 0.000 | 0.000 | 50.66 |
+| sulphur_dioxide | 864 | 0.000 | 0.000 | 24.84 |
+| carbon_monoxide | 864 | 0.000 | 0.000 | 334.43 |
+| ozone | 864 | 0.000 | 0.000 | 37.89 |
+
+PM2.5 by UTC day (newest first), to show whether older days settle:
+
+| UTC day | Mean abs. difference | Max abs. difference |
+|---|---|---|
+| 2026-11-02 | 0.000 | 0.000 |
+| 2026-11-01 | 0.000 | 0.000 |
+| 2026-10-31 | 0.000 | 0.000 |
+| 2026-10-30 | 0.000 | 0.000 |
+| 2026-10-29 | 0.000 | 0.000 |
+| 2026-10-28 | 0.000 | 0.000 |
+| 2026-10-27 | 0.000 | 0.000 |
+
+Weather from the Historical Forecast API fetched now against the same variables in the history cache (informational):
+
+| Variable | Hours compared | Mean abs. difference | Max abs. difference | Mean level |
+|---|---|---|---|---|
+| temperature_2m | 2,016 | 0.000 | 0.000 | 12.82 |
+| relative_humidity_2m | 2,016 | 0.000 | 0.000 | 55.43 |
+| wind_speed_10m | 2,016 | 0.000 | 0.000 | 5.98 |
+| precipitation | 2,016 | 0.000 | 0.000 | 0.06 |
+
+### Effect on the model
+
+For the same 72 (cell, day) pairs, probability from the cached history against probability from the fresh fetch: mean absolute difference 0.0000, maximum 0.0000, 0 change(s) of predicted class at 0.5. Feature differences (ug/m3): `pm2_5_mean` mean 0.000 / max 0.000; `pm2_5_max` mean 0.000 / max 0.000; `pm2_5_last` mean 0.000 / max 0.000.
+
+<!-- live-vs-history:end -->
+
 ## Reproduce
 
 ```

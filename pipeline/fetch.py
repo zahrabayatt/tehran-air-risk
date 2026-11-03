@@ -129,7 +129,8 @@ def _windows(start: dt.date, end: dt.date, days: int):
 def fetch_hourly(cells: Sequence[dict], start, end, *,
                  get: Callable | None = None, sleep: Callable[[float], None] | None = None,
                  window_days: int = WINDOW_DAYS, attempts: int = ATTEMPTS,
-                 pause_s: float = 0.0) -> pd.DataFrame:
+                 pause_s: float = 0.0, sources: Sequence[str] = ("air", "weather"),
+                 weather_url: str = FORECAST_URL) -> pd.DataFrame:
     """Hourly pollutants and weather for `cells` over the UTC days `start` to `end` inclusive.
 
     Returns one long frame with columns `cell_id`, `time_utc` (tz-aware UTC), the six
@@ -139,7 +140,14 @@ def fetch_hourly(cells: Sequence[dict], start, end, *,
     `pause_s` waits that long after each request to stay under the free-tier rate limit.
     Raises `FetchError` once `attempts` tries fail on a network error, HTTP 5xx, HTTP 429
     or a malformed body.
+
+    `sources` picks what to request: "air" (pollutants), "weather", or both (the default);
+    the frame then holds only those columns. `weather_url` swaps the weather endpoint; the daily
+    pipeline uses the live forecast API when the historical one has not yet caught up.
     """
+    unknown = set(sources) - {"air", "weather"}
+    if unknown or not sources:
+        raise ValueError(f"sources must be 'air' and/or 'weather', got {tuple(sources)!r}")
     get = get or requests.get
     sleep = sleep or time.sleep
     first, last = _day(start), _day(end)
@@ -152,19 +160,25 @@ def fetch_hourly(cells: Sequence[dict], start, end, *,
     for w_start, w_end in _windows(first, last, window_days):
         window = {"start_date": w_start.isoformat(), "end_date": w_end.isoformat()}
         merged = None
-        for url, names, extra in ((AIR_QUALITY_URL, POLLUTANTS, {"domains": "cams_global"}),
-                                  (FORECAST_URL, WEATHER, {"models": "ecmwf_ifs"})):
+        for source, url, names, extra in (("air", AIR_QUALITY_URL, POLLUTANTS, {"domains": "cams_global"}),
+                                          ("weather", weather_url, WEATHER, {"models": "ecmwf_ifs"})):
+            if source not in sources:
+                continue
             params = {**location, **window, "hourly": ",".join(names), **extra}
             frames = _request(get, sleep, url, params, len(cells), names, attempts)
             part = pd.concat([f.assign(cell_id=c["id"]) for c, f in zip(cells, frames)], ignore_index=True)
+            # a repeated stamp in a response must not multiply rows in the merge: the last one wins
+            part = part.drop_duplicates(["cell_id", "time_utc"], keep="last")
             merged = part if merged is None else merged.merge(part, on=["cell_id", "time_utc"], how="outer")
             if pause_s:
                 sleep(pause_s)
         pieces.append(merged)
-    out = pd.concat(pieces, ignore_index=True)
+    out = pd.concat(pieces, ignore_index=True).drop_duplicates(["cell_id", "time_utc"], keep="last")
     order = {c["id"]: i for i, c in enumerate(cells)}
     out = out.assign(_o=out["cell_id"].map(order)).sort_values(["_o", "time_utc"], kind="stable")
-    return out[COLUMNS].reset_index(drop=True)
+    columns = ["cell_id", "time_utc", *(POLLUTANTS if "air" in sources else ()),
+               *(WEATHER if "weather" in sources else ())]
+    return out[columns].reset_index(drop=True)
 
 
 def write_hourly(df: pd.DataFrame, path) -> None:

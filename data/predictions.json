@@ -1,0 +1,14 @@
+{"schema_version": 1, "entries": [
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"east-tehran","probability":0.5505,"predicted":1,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":31.68},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"far-east","probability":0.0354,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":14.65},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"far-northeast","probability":0.0087,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":11.34},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"far-southeast","probability":0.0203,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":13.62},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"far-west","probability":0.0402,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":22.86},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"north-tehran","probability":0.0103,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":13.28},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"northeast-tehran","probability":0.0104,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":12.92},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"northwest-alborz","probability":0.0296,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":18.3},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"south-central","probability":0.0682,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":20.53},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"southeast-plain","probability":0.0501,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":17.85},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"southwest-plain","probability":0.0329,"predicted":0,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":14.17},
+  {"issued_at":"2026-11-03T13:30:55Z","target_date":"2026-11-04","cell_id":"west-tehran","probability":0.6388,"predicted":1,"model_version":1,"outcome":null,"outcome_mean_pm25":null,"gap":false,"gap_reason":null,"cams_forecast_pm25":48.06}
+]}

@@ -56,6 +56,16 @@ describe('forecastLog', () => {
     expect(rows[0].probability).toBe(0.1);
   });
 
+  it('for a repeated cell and date keeps the entry with the latest issued_at, whatever the order', () => {
+    const older = entry(day(1), 'west-tehran', { issued_at: '2026-10-01T09:00:00Z', probability: 0.2, predicted: 0, outcome: 1 });
+    const newer = entry(day(1), 'west-tehran', { issued_at: '2026-10-01T10:00:00Z', probability: 0.9, predicted: 1, outcome: 1 });
+    for (const entries of [[older, newer], [newer, older]]) {
+      const rows = forecastLog(entries, 'west-tehran');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ probability: 0.9, predicted: 1, verdict: 'match' });
+    }
+  });
+
   it('is empty when there are no entries', () => {
     expect(forecastLog([], 'west-tehran')).toEqual([]);
   });

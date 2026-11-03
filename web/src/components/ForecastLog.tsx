@@ -48,6 +48,7 @@ export function ForecastLog({ cellName, rows, picker }: ForecastLogProps) {
       {rows.length === 0 ? (
         <p data-testid="log-empty">No forecasts have been recorded yet. Each day's forecast will appear here, with what happened beside it.</p>
       ) : (
+        <div className="log-scroll" role="region" aria-label="Past forecasts table, scrollable" tabIndex={0}>
         <table className="log" aria-labelledby="log-h">
           <thead>
             <tr>
@@ -76,6 +77,7 @@ export function ForecastLog({ cellName, rows, picker }: ForecastLogProps) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

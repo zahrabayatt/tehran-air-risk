@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { CellCard } from '../components/CellCard';
 import { ForecastLog } from '../components/ForecastLog';
 import { RiskMap, type MapLabel, type MapMarker } from '../components/RiskMap';
@@ -52,9 +52,8 @@ export function ForecastPage() {
   useEffect(() => {
     document.title = 'Tehran Air Risk: Forecast';
   }, []);
-  const location = useLocation();
-  // The clock is read once, so the page does not change under the reader. `?now=` is for tests.
-  const [now] = useState(() => resolveNow(location.search));
+  // The clock is read once, so the page does not change under the reader. `window.__TAR_NOW__` is for tests only.
+  const [now] = useState(() => resolveNow(window.__TAR_NOW__));
   const { state, retry } = useForecastData();
 
   if (state.status === 'loading') {

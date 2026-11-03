@@ -9,9 +9,17 @@ import {
 const EXCLUDED = /\b(MSE|RMSE|L1|L2|Accuracy|Precision|Recall|F1|ROC-AUC|confusion matrix|hit rate)\b/i;
 
 /** Serve `body` as predictions.json, fix the clock, and open the Forecast page. */
+/** Fix the page's clock before it loads (the page reads window.__TAR_NOW__; there is no address parameter). */
+async function setNow(page: Page, now: string) {
+  await page.addInitScript((t) => {
+    window.__TAR_NOW__ = t;
+  }, now);
+}
+
 async function open(page: Page, body: unknown, now = NOW_FRESH) {
   await page.route('**/data/predictions.json', (route) => route.fulfill({ json: body }));
-  await page.goto(`#/?now=${now}`);
+  await setNow(page, now);
+  await page.goto('#/');
   await expect(page.getByRole('heading', { level: 1 })).not.toHaveText('Forecast');
 }
 
@@ -166,6 +174,15 @@ test.describe('city headline', () => {
     await expect(page.locator('main')).toContainText('modelled air, not readings from Tehran');
     await expect(page.locator('main')).not.toContainText(/unhealthy|EPA/i);
   });
+
+  test('the page title and meta description make no health-category claim either', async ({ page }) => {
+    await open(page, bothAbove());
+    const title = await page.title();
+    const description = (await page.locator('meta[name="description"]').getAttribute('content')) ?? '';
+    expect(title).toBe('Tehran Air Risk: Forecast');
+    expect(description).toContain('35.4 μg/m³');
+    expect(`${title} ${description}`).not.toMatch(/unhealthy|EPA/i);
+  });
 });
 
 test.describe('gaps', () => {
@@ -259,7 +276,8 @@ test.describe('stale and empty', () => {
 
   test('a predictions file that cannot be read shows a clear message and a retry', async ({ page }) => {
     await page.route('**/data/predictions.json', (route) => route.fulfill({ status: 404, body: 'nope' }));
-    await page.goto(`#/?now=${NOW_FRESH}`);
+    await setNow(page, NOW_FRESH);
+    await page.goto('#/');
     await expect(page.getByRole('alert')).toContainText('The forecast did not load');
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
   });
@@ -271,7 +289,8 @@ test.describe('real predictions.json', () => {
     test.skip(real.entries.length === 0, 'no forecasts have been issued yet');
     const latest = real.entries.map((e: { issued_at: string }) => e.issued_at).sort().at(-1) as string;
     const now = new Date(Date.parse(latest) + 3_600_000).toISOString();
-    await page.goto(`#/?now=${now}`);
+    await setNow(page, now);
+    await page.goto('#/');
     await expect(squares(page)).toHaveCount(12);
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/West Tehran/);
   });

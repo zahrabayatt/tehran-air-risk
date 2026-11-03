@@ -22,7 +22,12 @@ export interface LogRow {
 export function forecastLog(entries: Entry[], cellId: string, days = LOG_DAYS): LogRow[] {
   const dates = [...new Set(entries.map((e) => e.target_date))].sort().reverse().slice(0, days);
   const mine = new Map<string, Entry>();
-  for (const e of entries) if (e.cell_id === cellId) mine.set(e.target_date, e);
+  // One entry per (cell, date) is expected; if a date repeats, the latest run wins (same rule as the map).
+  for (const e of entries) {
+    if (e.cell_id !== cellId) continue;
+    const prev = mine.get(e.target_date);
+    if (!prev || Date.parse(e.issued_at) >= Date.parse(prev.issued_at)) mine.set(e.target_date, e);
+  }
   return dates.map((date) => {
     const e = mine.get(date);
     if (!e || e.gap || e.probability === null) {

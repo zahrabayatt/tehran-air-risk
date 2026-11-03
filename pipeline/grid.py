@@ -1,11 +1,11 @@
 """The 12-cell CAMS grid around Tehran.
 
-Cells are 0.4 degrees square (about 45 km north-south, about 36 km east-west at
-this latitude). Boundaries come from a dense probe of the Open-Meteo Air Quality
-API (docs/DATA_PROFILE.md): every point inside one cell receives the identical
-series, and the change happens exactly on multiples of 0.4 degrees. A boundary
-belongs to the cell above or to the east of it, so each cell is the half-open
-box [lat_min, lat_max) x [lon_min, lon_max).
+Cells are 0.4 degrees square (about 44 by 36 km: 44.5 km north-south, about
+36 km east-west at this latitude). Boundaries come from a dense probe of the
+Open-Meteo Air Quality API (docs/DATA_PROFILE.md): every point inside one cell
+receives the identical series, and the change happens exactly on multiples of
+0.4 degrees. A boundary belongs to the cell above or to the east of it, so each
+cell is the half-open box [lat_min, lat_max) x [lon_min, lon_max).
 
 Row 0 is the northern band, column 0 the western one. `lat` and `lon` are the
 cell centres, which are the coordinates sent to the API.
@@ -18,7 +18,7 @@ CELL_SIZE = 0.4
 LAT_EDGES = (35.0, 35.4, 35.8, 36.2)          # south to north
 LON_EDGES = (50.6, 51.0, 51.4, 51.8, 52.2)    # west to east
 
-# Compass labels for the approximate position of each ~45 km square.
+# Compass labels for the approximate position of each 44 by 36 km square.
 # NAMES[row][col], row 0 = north.
 NAMES = (
     ("Northwest Alborz", "North Tehran", "Northeast Tehran", "Far Northeast"),

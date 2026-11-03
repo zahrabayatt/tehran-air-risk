@@ -549,7 +549,14 @@ def stage_profile():
     add(f"- **The API's returned coordinates do not identify the cell.** Requesting (35.5, 51.3) and (35.7, 51.3) returned latitude/longitude "
         f"{echo[0][0]}, {echo[0][1]} and {echo[1][0]}, {echo[1][1]}: the request echoed back. Identical series for those two points show "
         f"they share a cell ({g['echo_check_identical_series_for_35.5_and_35.7']}). Cells were found by comparing series, not coordinates.")
-    add(f"- The probe area holds **{g['distinct_cells_in_probe']} distinct cells**, each exactly 8 x 8 probe points, all rectangles, none empty.")
+    full = sum(1 for c in g["cells"].values() if c["points"] == 64)
+    partial = sorted(c["points"] for c in g["cells"].values() if c["points"] != 64)
+    lat_pts, lon_pts = frange(*PROBE_LAT, pr["step"]), frange(*PROBE_LON, pr["step"])
+    grid_pts = [sum(1 for la in lat_pts for lo in lon_pts
+                    if c["lat_min"] <= la < c["lat_max"] and c["lon_min"] <= lo < c["lon_max"]) for c in CELLS]
+    add(f"- The probe area holds **{g['distinct_cells_in_probe']} distinct cells**, all rectangles, none empty. {full} of them contain 8 x 8 = 64 probe points "
+        f"(including each of the 12 grid cells below: {str(min(grid_pts)) if min(grid_pts) == max(grid_pts) else f'{min(grid_pts)} to {max(grid_pts)}'} points each); the other {len(partial)} are partial cells on the edge of the "
+        f"probe area, with {', '.join(str(n) for n in partial)} points. The {pr['points']:,} probe points are the sum over all {g['distinct_cells_in_probe']} cells.")
     lat_e = ", ".join(f"{x['fine_edge']:.4f}" for x in g["lat_edges"])
     lon_e = ", ".join(f"{x['fine_edge']:.4f}" for x in g["lon_edges"])
     add(f"- Edges refined to 0.005 degrees (each value is the midpoint of the last pair of points whose series differ). Latitude: {lat_e}. "
@@ -559,7 +566,7 @@ def stage_profile():
     add("- Cell centres are multiples of 0.4 degrees (the model grid points); edges lie halfway between them. "
         "The earlier guess (centres 35.2, 35.6, 36.0 and 50.8, 51.2, 51.6, 52.0; 35.5 and 35.7 in one cell) is confirmed.")
     add("- Size: 0.4 degrees is 44.5 km north-south but only about 36 km east-west at 35.6 N (0.4 x 111.32 x cos 35.6). "
-        "\"About 45 km\" is true for height only; the site text should say about 45 km by 36 km.\n")
+        "\"About 45 km\" is true for height only; the site text should say about 44 by 36 km.\n")
     rows = [[c["id"], c["name"], c["row"], c["col"], f"{c['lat']}, {c['lon']}",
              f"{c['lat_min']} to {c['lat_max']}", f"{c['lon_min']} to {c['lon_max']}"] for c in CELLS]
     add(md_table(["id", "Name", "Row (0 = north)", "Col (0 = west)", "Centre (lat, lon)", "Latitude [min, max)", "Longitude [min, max)"], rows))

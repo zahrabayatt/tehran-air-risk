@@ -17,10 +17,10 @@ Values are model-derived (CAMS fields), not station measurements. The Open-Meteo
 Dense probe: 2,565 points every 0.05 degrees over latitude 34.6 to 36.8 and longitude 50.2 to 53.0, hourly `pm2_5` for 2026-10-20 to 2026-10-26 (7 days x 24 values per point). Two points are in the same cell when their series are identical.
 
 - **The API's returned coordinates do not identify the cell.** Requesting (35.5, 51.3) and (35.7, 51.3) returned latitude/longitude 35.5, 51.300003 and 35.700005, 51.300003: the request echoed back. Identical series for those two points show they share a cell (True). Cells were found by comparing series, not coordinates.
-- The probe area holds **48 distinct cells**, each exactly 8 x 8 probe points, all rectangles, none empty.
+- The probe area holds **48 distinct cells**, all rectangles, none empty. 35 of them contain 8 x 8 = 64 probe points (including each of the 12 grid cells below: 64 points each); the other 13 are partial cells on the edge of the probe area, with 5, 8, 8, 8, 8, 8, 40, 40, 40, 40, 40, 40, 40 points. The 2,565 probe points are the sum over all 48 cells.
 - Edges refined to 0.005 degrees (each value is the midpoint of the last pair of points whose series differ). Latitude: 34.9975, 35.3975, 35.7975, 36.1975, 36.5975. Longitude: 50.5975, 50.9975, 51.3975, 51.7975, 52.1975, 52.5975, 52.9975. Each value sits 0.0025 below 35.0, 35.4, 35.8, 36.2 (latitude) or 50.6, 51.0, 51.4, 51.8, 52.2 (longitude): the last point of the lower or western cell is 0.005 below the edge and the first point of the upper or eastern cell is exactly on it. So a point on an edge belongs to the cell to its north or east, and cells are half-open boxes.
 - Cell centres are multiples of 0.4 degrees (the model grid points); edges lie halfway between them. The earlier guess (centres 35.2, 35.6, 36.0 and 50.8, 51.2, 51.6, 52.0; 35.5 and 35.7 in one cell) is confirmed.
-- Size: 0.4 degrees is 44.5 km north-south but only about 36 km east-west at 35.6 N (0.4 x 111.32 x cos 35.6). "About 45 km" is true for height only; the site text should say about 45 km by 36 km.
+- Size: 0.4 degrees is 44.5 km north-south but only about 36 km east-west at 35.6 N (0.4 x 111.32 x cos 35.6). "About 45 km" is true for height only; the site text should say about 44 by 36 km.
 
 | id | Name | Row (0 = north) | Col (0 = west) | Centre (lat, lon) | Latitude [min, max) | Longitude [min, max) |
 |---|---|---|---|---|---|---|

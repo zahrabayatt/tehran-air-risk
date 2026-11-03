@@ -8,3 +8,4 @@ dist/
 test-results/
 playwright-report/
 .claude/
+.pytest_cache/

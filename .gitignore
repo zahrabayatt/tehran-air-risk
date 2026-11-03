@@ -1,0 +1,10 @@
+.superpowers/
+.venv/
+node_modules/
+data/raw/
+__pycache__/
+*.pyc
+dist/
+test-results/
+playwright-report/
+.claude/

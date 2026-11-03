@@ -1,0 +1,12 @@
+{
+  "note": "Approximate centre of each named place, 2 decimals. The cell a place belongs to is never typed here: the browser computes it from public/data/grid.json, and the tests check that against pipeline/grid.py cell_for.",
+  "places": [
+    { "id": "azadi", "name": "Azadi Square", "lat": 35.7, "lon": 51.34, "landmark": "Azadi Tower" },
+    { "id": "tehranpars", "name": "Tehranpars", "lat": 35.73, "lon": 51.52, "landmark": "Tehranpars Square" },
+    { "id": "rey", "name": "Shahr-e Rey", "lat": 35.59, "lon": 51.44, "landmark": "Shah Abdol-Azim shrine" },
+    { "id": "tajrish", "name": "Tajrish", "lat": 35.8, "lon": 51.43, "landmark": "Tajrish Square" },
+    { "id": "karaj", "name": "Karaj", "lat": 35.83, "lon": 50.99, "landmark": "city centre", "onMap": true },
+    { "id": "varamin", "name": "Varamin", "lat": 35.32, "lon": 51.65, "landmark": "city centre", "onMap": true },
+    { "id": "damavand", "name": "Damavand", "lat": 35.72, "lon": 52.07, "landmark": "city centre", "onMap": true }
+  ]
+}

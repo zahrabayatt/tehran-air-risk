@@ -1,0 +1,868 @@
+{
+ "points": [
+  {
+   "lat": 36.0,
+   "lon": 50.8,
+   "what": "centre of northwest-alborz",
+   "cell": "northwest-alborz"
+  },
+  {
+   "lat": 36.0,
+   "lon": 51.2,
+   "what": "centre of north-tehran",
+   "cell": "north-tehran"
+  },
+  {
+   "lat": 36.0,
+   "lon": 51.6,
+   "what": "centre of northeast-tehran",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 36.0,
+   "lon": 52.0,
+   "what": "centre of far-northeast",
+   "cell": "far-northeast"
+  },
+  {
+   "lat": 35.6,
+   "lon": 50.8,
+   "what": "centre of far-west",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.6,
+   "lon": 51.2,
+   "what": "centre of west-tehran",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.6,
+   "lon": 51.6,
+   "what": "centre of east-tehran",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.6,
+   "lon": 52.0,
+   "what": "centre of far-east",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.2,
+   "lon": 50.8,
+   "what": "centre of southwest-plain",
+   "cell": "southwest-plain"
+  },
+  {
+   "lat": 35.2,
+   "lon": 51.2,
+   "what": "centre of south-central",
+   "cell": "south-central"
+  },
+  {
+   "lat": 35.2,
+   "lon": 51.6,
+   "what": "centre of southeast-plain",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 35.2,
+   "lon": 52.0,
+   "what": "centre of far-southeast",
+   "cell": "far-southeast"
+  },
+  {
+   "lat": 35.0,
+   "lon": 50.6,
+   "what": "grid corner",
+   "cell": "southwest-plain"
+  },
+  {
+   "lat": 34.99999,
+   "lon": 50.59999,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.00001,
+   "lon": 50.600010000000005,
+   "what": "grid corner +1e-05",
+   "cell": "southwest-plain"
+  },
+  {
+   "lat": 34.9999999,
+   "lon": 50.5999999,
+   "what": "grid corner -1e-07",
+   "cell": "southwest-plain"
+  },
+  {
+   "lat": 35.0000001,
+   "lon": 50.6000001,
+   "what": "grid corner +1e-07",
+   "cell": "southwest-plain"
+  },
+  {
+   "lat": 35.0,
+   "lon": 51.0,
+   "what": "grid corner",
+   "cell": "south-central"
+  },
+  {
+   "lat": 34.99999,
+   "lon": 50.99999,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.00001,
+   "lon": 51.00001,
+   "what": "grid corner +1e-05",
+   "cell": "south-central"
+  },
+  {
+   "lat": 34.9999999,
+   "lon": 50.9999999,
+   "what": "grid corner -1e-07",
+   "cell": "south-central"
+  },
+  {
+   "lat": 35.0000001,
+   "lon": 51.0000001,
+   "what": "grid corner +1e-07",
+   "cell": "south-central"
+  },
+  {
+   "lat": 35.0,
+   "lon": 51.4,
+   "what": "grid corner",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 34.99999,
+   "lon": 51.399989999999995,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.00001,
+   "lon": 51.40001,
+   "what": "grid corner +1e-05",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 34.9999999,
+   "lon": 51.3999999,
+   "what": "grid corner -1e-07",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 35.0000001,
+   "lon": 51.4000001,
+   "what": "grid corner +1e-07",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 35.0,
+   "lon": 51.8,
+   "what": "grid corner",
+   "cell": "far-southeast"
+  },
+  {
+   "lat": 34.99999,
+   "lon": 51.799989999999994,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.00001,
+   "lon": 51.80001,
+   "what": "grid corner +1e-05",
+   "cell": "far-southeast"
+  },
+  {
+   "lat": 34.9999999,
+   "lon": 51.799999899999996,
+   "what": "grid corner -1e-07",
+   "cell": "far-southeast"
+  },
+  {
+   "lat": 35.0000001,
+   "lon": 51.8000001,
+   "what": "grid corner +1e-07",
+   "cell": "far-southeast"
+  },
+  {
+   "lat": 35.0,
+   "lon": 52.2,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 34.99999,
+   "lon": 52.19999,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.00001,
+   "lon": 52.200010000000006,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 34.9999999,
+   "lon": 52.1999999,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 35.0000001,
+   "lon": 52.200000100000004,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 35.4,
+   "lon": 50.6,
+   "what": "grid corner",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.399989999999995,
+   "lon": 50.59999,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.40001,
+   "lon": 50.600010000000005,
+   "what": "grid corner +1e-05",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.3999999,
+   "lon": 50.5999999,
+   "what": "grid corner -1e-07",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.4000001,
+   "lon": 50.6000001,
+   "what": "grid corner +1e-07",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.4,
+   "lon": 51.0,
+   "what": "grid corner",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.399989999999995,
+   "lon": 50.99999,
+   "what": "grid corner -1e-05",
+   "cell": "southwest-plain"
+  },
+  {
+   "lat": 35.40001,
+   "lon": 51.00001,
+   "what": "grid corner +1e-05",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.3999999,
+   "lon": 50.9999999,
+   "what": "grid corner -1e-07",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.4000001,
+   "lon": 51.0000001,
+   "what": "grid corner +1e-07",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.4,
+   "lon": 51.4,
+   "what": "grid corner",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.399989999999995,
+   "lon": 51.399989999999995,
+   "what": "grid corner -1e-05",
+   "cell": "south-central"
+  },
+  {
+   "lat": 35.40001,
+   "lon": 51.40001,
+   "what": "grid corner +1e-05",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.3999999,
+   "lon": 51.3999999,
+   "what": "grid corner -1e-07",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.4000001,
+   "lon": 51.4000001,
+   "what": "grid corner +1e-07",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.4,
+   "lon": 51.8,
+   "what": "grid corner",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.399989999999995,
+   "lon": 51.799989999999994,
+   "what": "grid corner -1e-05",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 35.40001,
+   "lon": 51.80001,
+   "what": "grid corner +1e-05",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.3999999,
+   "lon": 51.799999899999996,
+   "what": "grid corner -1e-07",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.4000001,
+   "lon": 51.8000001,
+   "what": "grid corner +1e-07",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.4,
+   "lon": 52.2,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 35.399989999999995,
+   "lon": 52.19999,
+   "what": "grid corner -1e-05",
+   "cell": "far-southeast"
+  },
+  {
+   "lat": 35.40001,
+   "lon": 52.200010000000006,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.3999999,
+   "lon": 52.1999999,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 35.4000001,
+   "lon": 52.200000100000004,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 35.8,
+   "lon": 50.6,
+   "what": "grid corner",
+   "cell": "northwest-alborz"
+  },
+  {
+   "lat": 35.799989999999994,
+   "lon": 50.59999,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.80001,
+   "lon": 50.600010000000005,
+   "what": "grid corner +1e-05",
+   "cell": "northwest-alborz"
+  },
+  {
+   "lat": 35.799999899999996,
+   "lon": 50.5999999,
+   "what": "grid corner -1e-07",
+   "cell": "northwest-alborz"
+  },
+  {
+   "lat": 35.8000001,
+   "lon": 50.6000001,
+   "what": "grid corner +1e-07",
+   "cell": "northwest-alborz"
+  },
+  {
+   "lat": 35.8,
+   "lon": 51.0,
+   "what": "grid corner",
+   "cell": "north-tehran"
+  },
+  {
+   "lat": 35.799989999999994,
+   "lon": 50.99999,
+   "what": "grid corner -1e-05",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.80001,
+   "lon": 51.00001,
+   "what": "grid corner +1e-05",
+   "cell": "north-tehran"
+  },
+  {
+   "lat": 35.799999899999996,
+   "lon": 50.9999999,
+   "what": "grid corner -1e-07",
+   "cell": "north-tehran"
+  },
+  {
+   "lat": 35.8000001,
+   "lon": 51.0000001,
+   "what": "grid corner +1e-07",
+   "cell": "north-tehran"
+  },
+  {
+   "lat": 35.8,
+   "lon": 51.4,
+   "what": "grid corner",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 35.799989999999994,
+   "lon": 51.399989999999995,
+   "what": "grid corner -1e-05",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.80001,
+   "lon": 51.40001,
+   "what": "grid corner +1e-05",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 35.799999899999996,
+   "lon": 51.3999999,
+   "what": "grid corner -1e-07",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 35.8000001,
+   "lon": 51.4000001,
+   "what": "grid corner +1e-07",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 35.8,
+   "lon": 51.8,
+   "what": "grid corner",
+   "cell": "far-northeast"
+  },
+  {
+   "lat": 35.799989999999994,
+   "lon": 51.799989999999994,
+   "what": "grid corner -1e-05",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.80001,
+   "lon": 51.80001,
+   "what": "grid corner +1e-05",
+   "cell": "far-northeast"
+  },
+  {
+   "lat": 35.799999899999996,
+   "lon": 51.799999899999996,
+   "what": "grid corner -1e-07",
+   "cell": "far-northeast"
+  },
+  {
+   "lat": 35.8000001,
+   "lon": 51.8000001,
+   "what": "grid corner +1e-07",
+   "cell": "far-northeast"
+  },
+  {
+   "lat": 35.8,
+   "lon": 52.2,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 35.799989999999994,
+   "lon": 52.19999,
+   "what": "grid corner -1e-05",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.80001,
+   "lon": 52.200010000000006,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 35.799999899999996,
+   "lon": 52.1999999,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 35.8000001,
+   "lon": 52.200000100000004,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.2,
+   "lon": 50.6,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 36.19999,
+   "lon": 50.59999,
+   "what": "grid corner -1e-05",
+   "cell": null
+  },
+  {
+   "lat": 36.200010000000006,
+   "lon": 50.600010000000005,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 36.1999999,
+   "lon": 50.5999999,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.200000100000004,
+   "lon": 50.6000001,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.2,
+   "lon": 51.0,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 36.19999,
+   "lon": 50.99999,
+   "what": "grid corner -1e-05",
+   "cell": "northwest-alborz"
+  },
+  {
+   "lat": 36.200010000000006,
+   "lon": 51.00001,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 36.1999999,
+   "lon": 50.9999999,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.200000100000004,
+   "lon": 51.0000001,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.2,
+   "lon": 51.4,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 36.19999,
+   "lon": 51.399989999999995,
+   "what": "grid corner -1e-05",
+   "cell": "north-tehran"
+  },
+  {
+   "lat": 36.200010000000006,
+   "lon": 51.40001,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 36.1999999,
+   "lon": 51.3999999,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.200000100000004,
+   "lon": 51.4000001,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.2,
+   "lon": 51.8,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 36.19999,
+   "lon": 51.799989999999994,
+   "what": "grid corner -1e-05",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 36.200010000000006,
+   "lon": 51.80001,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 36.1999999,
+   "lon": 51.799999899999996,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.200000100000004,
+   "lon": 51.8000001,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.2,
+   "lon": 52.2,
+   "what": "grid corner",
+   "cell": null
+  },
+  {
+   "lat": 36.19999,
+   "lon": 52.19999,
+   "what": "grid corner -1e-05",
+   "cell": "far-northeast"
+  },
+  {
+   "lat": 36.200010000000006,
+   "lon": 52.200010000000006,
+   "what": "grid corner +1e-05",
+   "cell": null
+  },
+  {
+   "lat": 36.1999999,
+   "lon": 52.1999999,
+   "what": "grid corner -1e-07",
+   "cell": null
+  },
+  {
+   "lat": 36.200000100000004,
+   "lon": 52.200000100000004,
+   "what": "grid corner +1e-07",
+   "cell": null
+  },
+  {
+   "lat": 34.99999,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": null
+  },
+  {
+   "lat": 35.00001,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 35.399989999999995,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 35.40001,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.799989999999994,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.80001,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 36.19999,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 36.200010000000006,
+   "lon": 51.6,
+   "what": "lat edge",
+   "cell": null
+  },
+  {
+   "lat": 35.6,
+   "lon": 50.59999,
+   "what": "lon edge",
+   "cell": null
+  },
+  {
+   "lat": 35.6,
+   "lon": 50.600010000000005,
+   "what": "lon edge",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.6,
+   "lon": 50.99999,
+   "what": "lon edge",
+   "cell": "far-west"
+  },
+  {
+   "lat": 35.6,
+   "lon": 51.00001,
+   "what": "lon edge",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.6,
+   "lon": 51.399989999999995,
+   "what": "lon edge",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.6,
+   "lon": 51.40001,
+   "what": "lon edge",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.6,
+   "lon": 51.799989999999994,
+   "what": "lon edge",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.6,
+   "lon": 51.80001,
+   "what": "lon edge",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.6,
+   "lon": 52.19999,
+   "what": "lon edge",
+   "cell": "far-east"
+  },
+  {
+   "lat": 35.6,
+   "lon": 52.200010000000006,
+   "what": "lon edge",
+   "cell": null
+  },
+  {
+   "lat": 35.7,
+   "lon": 51.34,
+   "what": "place azadi",
+   "cell": "west-tehran"
+  },
+  {
+   "lat": 35.73,
+   "lon": 51.52,
+   "what": "place tehranpars",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.59,
+   "lon": 51.44,
+   "what": "place rey",
+   "cell": "east-tehran"
+  },
+  {
+   "lat": 35.8,
+   "lon": 51.43,
+   "what": "place tajrish",
+   "cell": "northeast-tehran"
+  },
+  {
+   "lat": 35.83,
+   "lon": 50.99,
+   "what": "place karaj",
+   "cell": "northwest-alborz"
+  },
+  {
+   "lat": 35.32,
+   "lon": 51.65,
+   "what": "place varamin",
+   "cell": "southeast-plain"
+  },
+  {
+   "lat": 35.72,
+   "lon": 52.07,
+   "what": "place damavand",
+   "cell": "far-east"
+  },
+  {
+   "lat": 0.0,
+   "lon": 0.0,
+   "what": "outside",
+   "cell": null
+  },
+  {
+   "lat": 40.0,
+   "lon": 51.4,
+   "what": "outside",
+   "cell": null
+  },
+  {
+   "lat": 35.7,
+   "lon": 45.0,
+   "what": "outside",
+   "cell": null
+  },
+  {
+   "lat": 30.0,
+   "lon": 60.0,
+   "what": "outside",
+   "cell": null
+  },
+  {
+   "lat": 35.7,
+   "lon": 56.0,
+   "what": "outside",
+   "cell": null
+  },
+  {
+   "lat": 36.2,
+   "lon": 51.4,
+   "what": "outside",
+   "cell": null
+  },
+  {
+   "lat": 35.4,
+   "lon": 52.2,
+   "what": "outside",
+   "cell": null
+  }
+ ]
+}

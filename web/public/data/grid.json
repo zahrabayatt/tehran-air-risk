@@ -1,0 +1,148 @@
+{
+ "cells": [
+  {
+   "id": "northwest-alborz",
+   "name": "Northwest Alborz",
+   "row": 0,
+   "col": 0,
+   "lat": 36.0,
+   "lon": 50.8,
+   "lat_min": 35.8,
+   "lat_max": 36.2,
+   "lon_min": 50.6,
+   "lon_max": 51.0
+  },
+  {
+   "id": "north-tehran",
+   "name": "North Tehran",
+   "row": 0,
+   "col": 1,
+   "lat": 36.0,
+   "lon": 51.2,
+   "lat_min": 35.8,
+   "lat_max": 36.2,
+   "lon_min": 51.0,
+   "lon_max": 51.4
+  },
+  {
+   "id": "northeast-tehran",
+   "name": "Northeast Tehran",
+   "row": 0,
+   "col": 2,
+   "lat": 36.0,
+   "lon": 51.6,
+   "lat_min": 35.8,
+   "lat_max": 36.2,
+   "lon_min": 51.4,
+   "lon_max": 51.8
+  },
+  {
+   "id": "far-northeast",
+   "name": "Far Northeast",
+   "row": 0,
+   "col": 3,
+   "lat": 36.0,
+   "lon": 52.0,
+   "lat_min": 35.8,
+   "lat_max": 36.2,
+   "lon_min": 51.8,
+   "lon_max": 52.2
+  },
+  {
+   "id": "far-west",
+   "name": "Far West",
+   "row": 1,
+   "col": 0,
+   "lat": 35.6,
+   "lon": 50.8,
+   "lat_min": 35.4,
+   "lat_max": 35.8,
+   "lon_min": 50.6,
+   "lon_max": 51.0
+  },
+  {
+   "id": "west-tehran",
+   "name": "West Tehran",
+   "row": 1,
+   "col": 1,
+   "lat": 35.6,
+   "lon": 51.2,
+   "lat_min": 35.4,
+   "lat_max": 35.8,
+   "lon_min": 51.0,
+   "lon_max": 51.4
+  },
+  {
+   "id": "east-tehran",
+   "name": "East Tehran",
+   "row": 1,
+   "col": 2,
+   "lat": 35.6,
+   "lon": 51.6,
+   "lat_min": 35.4,
+   "lat_max": 35.8,
+   "lon_min": 51.4,
+   "lon_max": 51.8
+  },
+  {
+   "id": "far-east",
+   "name": "Far East",
+   "row": 1,
+   "col": 3,
+   "lat": 35.6,
+   "lon": 52.0,
+   "lat_min": 35.4,
+   "lat_max": 35.8,
+   "lon_min": 51.8,
+   "lon_max": 52.2
+  },
+  {
+   "id": "southwest-plain",
+   "name": "Southwest Plain",
+   "row": 2,
+   "col": 0,
+   "lat": 35.2,
+   "lon": 50.8,
+   "lat_min": 35.0,
+   "lat_max": 35.4,
+   "lon_min": 50.6,
+   "lon_max": 51.0
+  },
+  {
+   "id": "south-central",
+   "name": "South Central",
+   "row": 2,
+   "col": 1,
+   "lat": 35.2,
+   "lon": 51.2,
+   "lat_min": 35.0,
+   "lat_max": 35.4,
+   "lon_min": 51.0,
+   "lon_max": 51.4
+  },
+  {
+   "id": "southeast-plain",
+   "name": "Southeast Plain",
+   "row": 2,
+   "col": 2,
+   "lat": 35.2,
+   "lon": 51.6,
+   "lat_min": 35.0,
+   "lat_max": 35.4,
+   "lon_min": 51.4,
+   "lon_max": 51.8
+  },
+  {
+   "id": "far-southeast",
+   "name": "Far Southeast",
+   "row": 2,
+   "col": 3,
+   "lat": 35.2,
+   "lon": 52.0,
+   "lat_min": 35.0,
+   "lat_max": 35.4,
+   "lon_min": 51.8,
+   "lon_max": 52.2
+  }
+ ]
+}

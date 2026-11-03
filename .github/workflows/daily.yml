@@ -81,6 +81,10 @@ jobs:
   build:
     needs: forecast
     runs-on: ubuntu-latest
+    # configure-pages needs pages: write (it reads and can enable the Pages site).
+    permissions:
+      contents: read
+      pages: write
     defaults:
       run:
         working-directory: web

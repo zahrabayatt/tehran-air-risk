@@ -150,7 +150,12 @@ def render(result: dict) -> str:
          f"Measured on {result['measured_at']} by `python -m pipeline.compare_live` (all 12 cells; every number below "
          "is computed from live responses, nothing typed in). The daily pipeline fetches its inputs live; the model "
          "was trained on values fetched earlier. Differences are absolute, in the variable's own unit "
-         "(ug/m3 for pollutants; degrees C, percent, km/h and mm for weather)."]
+         "(ug/m3 for pollutants; degrees C, percent, km/h and mm for weather).",
+         "",
+         "**What the zeros mean.** The history cache was fetched within about a day of this comparison, so a zero shows that "
+         "the live sources and the cache match now. It does not show whether the hours of an issue day are revised "
+         "later; the saved live snapshot (`data/raw/live_snapshot_*.csv.gz`, git-ignored) is for re-checking that on a "
+         "later day."]
     L += ["", "### Weather: live forecast API against Historical Forecast API", "",
           f"Same 12 pre-cutoff stamps (21:00 UTC on D-1 to 08:00 UTC on D) for D = {', '.join(result['weather_days'])}; "
           "both with `models=ecmwf_ifs`, fetched in the same minute. The deployed model does not use weather "

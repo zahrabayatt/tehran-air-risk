@@ -112,7 +112,9 @@ Using the Single Runs path would cut the labelled history from 1,552 days to abo
 <!-- live-vs-history:begin -->
 ## Live vs history
 
-Measured on 2026-11-03T13:30:27Z by `python -m pipeline.compare_live` (all 12 cells; every number below is computed from live responses, nothing typed in). The daily pipeline fetches its inputs live; the model was trained on values fetched earlier. Differences are absolute, in the variable's own unit (ug/m3 for pollutants; degrees C, percent, km/h and mm for weather).
+Measured on 2026-11-03T13:36:50Z by `python -m pipeline.compare_live` (all 12 cells; every number below is computed from live responses, nothing typed in). The daily pipeline fetches its inputs live; the model was trained on values fetched earlier. Differences are absolute, in the variable's own unit (ug/m3 for pollutants; degrees C, percent, km/h and mm for weather).
+
+**What the zeros mean.** The history cache was fetched within about a day of this comparison, so a zero shows that the live sources and the cache match now. It does not show whether the hours of an issue day are revised later; the saved live snapshot (`data/raw/live_snapshot_*.csv.gz`, git-ignored) is for re-checking that on a later day.
 
 ### Weather: live forecast API against Historical Forecast API
 

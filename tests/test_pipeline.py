@@ -51,9 +51,10 @@ class FakeApi:
     makes a value null. kind is "air", "hf" or "live".
     """
 
-    def __init__(self, pm25=default_pm25, fail=None, drop=None, null=None, duplicate_stamps=False):
+    def __init__(self, pm25=default_pm25, fail=None, drop=None, null=None, duplicate_stamps=False,
+                 duplicate_shift=0.0):
         self.pm25, self.fail, self.drop, self.null = pm25, fail, drop, null
-        self.duplicate_stamps = duplicate_stamps
+        self.duplicate_stamps, self.duplicate_shift = duplicate_stamps, duplicate_shift
         self.calls = []
 
     @staticmethod
@@ -80,12 +81,14 @@ class FakeApi:
         blocks = []
         for cell_id in ids:
             keep = [t for t in stamps if not (self.drop and self.drop(kind, cell_id, t))]
+            n_original = len(keep)
             if self.duplicate_stamps:
                 keep = keep + keep[:30]
             hourly = {"time": [t.strftime("%Y-%m-%dT%H:%M") for t in keep]}
             for name in names:
                 hourly[name] = [None if (self.null and self.null(kind, cell_id, name, t))
-                                else float(self.value(name, cell_id, t)) for t in keep]
+                                else float(self.value(name, cell_id, t)) + (self.duplicate_shift if i >= n_original else 0.0)
+                                for i, t in enumerate(keep)]
             blocks.append({"utc_offset_seconds": 0, "hourly": hourly})
         return Resp(200, blocks if len(blocks) > 1 else blocks[0])
 
@@ -331,6 +334,27 @@ def test_duplicate_stamps_in_a_response_are_deduplicated(tmp_path):
     new, _ = go(tmp_path, FakeApi(duplicate_stamps=True))
     assert len(new) == 12 and all(not e["gap"] for e in new)
     assert new[0]["probability"] == pytest.approx(expected_probability(WINDOW_PM, TARGET), abs=5e-5)
+
+
+def test_conflicting_duplicate_stamps_are_an_error_not_a_guess(tmp_path):
+    with pytest.raises(FetchError, match="different values"):
+        fetch_hourly(CELLS[:2], "2026-11-01", "2026-11-01", get=FakeApi(duplicate_stamps=True, duplicate_shift=1.0),
+                     sleep=Sleeper())
+    # identical repeats collapse to one row per hour
+    df = fetch_hourly(CELLS[:2], "2026-11-01", "2026-11-01", get=FakeApi(duplicate_stamps=True), sleep=Sleeper())
+    assert len(df) == 2 * 24 and not df.duplicated(["cell_id", "time_utc"]).any()
+    # through the pipeline the conflict is recorded as gaps, never as a forecast
+    new, _ = go(tmp_path, FakeApi(duplicate_stamps=True, duplicate_shift=1.0))
+    assert len(new) == 12 and all(e["gap"] and "different values" in e["gap_reason"] for e in new)
+
+
+def test_a_null_repeated_against_a_number_is_a_conflict():
+    key = {"cell_id": ["a", "a"], "time_utc": pd.to_datetime(["2026-11-01 00:00"] * 2, utc=True)}
+    from pipeline.fetch import _collapse_duplicates
+    with pytest.raises(FetchError):
+        _collapse_duplicates(pd.DataFrame({**key, "pm2_5": [1.0, np.nan]}), ["pm2_5"], "test")
+    both_null = _collapse_duplicates(pd.DataFrame({**key, "pm2_5": [np.nan, np.nan]}), ["pm2_5"], "test")
+    assert len(both_null) == 1
 
 
 # ------------------------------------------------------------------ weather fallback (ruling 3)
@@ -612,3 +636,33 @@ def test_measure_and_profile_section(tmp_path):
     assert spliced.index("## Live vs history") < spliced.index("## Reproduce")
     assert compare_live.splice(spliced, section) == spliced                      # replacing is idempotent
     assert compare_live.extract_section(spliced) == section.rstrip("\n") + "\n"
+
+
+def job_permissions(text: str) -> dict:
+    """Each job's own `permissions:` mapping, read from the workflow text (PyYAML is not a project dependency)."""
+    jobs_text = text.split("\njobs:\n", 1)[1]
+    out, current, in_perm = {}, None, False
+    for line in jobs_text.splitlines():
+        if line and not line.startswith(" "):
+            break
+        if line.startswith("  ") and not line.startswith("   ") and line.strip().endswith(":"):
+            current, in_perm = line.strip()[:-1], False
+            out[current] = {}
+        elif current and line.startswith("    permissions:"):
+            in_perm = True
+        elif current and in_perm and line.startswith("      ") and ":" in line:
+            k, v = line.strip().split(":", 1)
+            out[current][k] = v.strip()
+        elif line.startswith("    ") and not line.startswith("      "):
+            in_perm = False
+    return out
+
+
+def test_each_job_has_exactly_the_permissions_it_needs():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "\npermissions:\n  contents: read\n" in text            # the default for everything else
+    assert job_permissions(text) == {
+        "forecast": {"contents": "write"},
+        "build": {"contents": "read", "pages": "write"},         # actions/configure-pages
+        "deploy": {"pages": "write", "id-token": "write"},       # actions/deploy-pages
+    }

@@ -126,6 +126,29 @@ def _windows(start: dt.date, end: dt.date, days: int):
         first = last + dt.timedelta(days=1)
 
 
+def columns_of(sources: Sequence[str]) -> list[str]:
+    """The value columns that `sources` ("air", "weather") produce."""
+    return [*(POLLUTANTS if "air" in sources else ()), *(WEATHER if "weather" in sources else ())]
+
+
+def _collapse_duplicates(frame: pd.DataFrame, names: Sequence[str], where: str) -> pd.DataFrame:
+    """One row per (cell_id, time_utc). Identical repeats collapse; repeats that disagree raise FetchError.
+
+    A repeated stamp must not multiply rows in a merge, and picking one of two different values
+    would be a guess, so a conflict is an error (null against a number counts as a conflict).
+    """
+    key = ["cell_id", "time_utc"]
+    if not frame.duplicated(key).any():
+        return frame
+    distinct = frame.groupby(key)[list(names)].nunique(dropna=False)
+    conflicts = distinct[(distinct > 1).any(axis=1)]
+    if len(conflicts):
+        cell_id, stamp = conflicts.index[0]
+        raise FetchError(f"{where} repeats {len(conflicts)} hour(s) with different values, "
+                         f"first {cell_id} at {stamp}")
+    return frame.drop_duplicates(key, keep="last")
+
+
 def fetch_hourly(cells: Sequence[dict], start, end, *,
                  get: Callable | None = None, sleep: Callable[[float], None] | None = None,
                  window_days: int = WINDOW_DAYS, attempts: int = ATTEMPTS,
@@ -167,18 +190,15 @@ def fetch_hourly(cells: Sequence[dict], start, end, *,
             params = {**location, **window, "hourly": ",".join(names), **extra}
             frames = _request(get, sleep, url, params, len(cells), names, attempts)
             part = pd.concat([f.assign(cell_id=c["id"]) for c, f in zip(cells, frames)], ignore_index=True)
-            # a repeated stamp in a response must not multiply rows in the merge: the last one wins
-            part = part.drop_duplicates(["cell_id", "time_utc"], keep="last")
+            part = _collapse_duplicates(part, names, url)
             merged = part if merged is None else merged.merge(part, on=["cell_id", "time_utc"], how="outer")
             if pause_s:
                 sleep(pause_s)
         pieces.append(merged)
-    out = pd.concat(pieces, ignore_index=True).drop_duplicates(["cell_id", "time_utc"], keep="last")
+    out = _collapse_duplicates(pd.concat(pieces, ignore_index=True), columns_of(sources), "the combined windows")
     order = {c["id"]: i for i, c in enumerate(cells)}
     out = out.assign(_o=out["cell_id"].map(order)).sort_values(["_o", "time_utc"], kind="stable")
-    columns = ["cell_id", "time_utc", *(POLLUTANTS if "air" in sources else ()),
-               *(WEATHER if "weather" in sources else ())]
-    return out[columns].reset_index(drop=True)
+    return out[["cell_id", "time_utc", *columns_of(sources)]].reset_index(drop=True)
 
 
 def write_hourly(df: pd.DataFrame, path) -> None:

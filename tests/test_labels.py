@@ -24,7 +24,7 @@ def test_output_shape():
     assert row["cell_id"] == "west-tehran"
     assert row["date"] == dt.date(2025, 1, 11)
     assert isinstance(row["date"], dt.date)
-    assert pd.api.types.is_integer_dtype(out["y"])
+    assert out["y"].dtype == "int64"
     assert row["mean_pm25"] == pytest.approx(10.0)
 
 

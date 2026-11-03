@@ -38,5 +38,5 @@ def daily_labels(hourly: pd.DataFrame, threshold: float = THRESHOLD, min_hours: 
     daily = (frame.groupby(["cell_id", "date"], sort=True)["pm2_5"]
              .agg(n="count", mean_pm25="mean").reset_index())
     daily = daily[daily["n"] >= min_hours].copy()
-    daily["y"] = (daily["mean_pm25"].round(_NOISE_DECIMALS) > threshold).astype(int)
+    daily["y"] = (daily["mean_pm25"].round(_NOISE_DECIMALS) > threshold).astype("int64")
     return daily[COLUMNS].reset_index(drop=True)

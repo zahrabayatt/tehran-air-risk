@@ -137,11 +137,13 @@ def fetch_cells(cells: Sequence[dict], day: dt.date, *, get, sleep) -> tuple[pd.
     return (pd.concat(frames, ignore_index=True) if frames else empty), errors
 
 
+# lab:model_probability
 def model_probability(model: dict, row: dict) -> float:
     """Apply the frozen model to one build_row result: pick model['features'], z-score, sigmoid."""
     x = np.array([[row[name] for name in model["features"]]], dtype=float)
     z = zscore_apply(x, np.array(model["scaling"]["mu"]), np.array(model["scaling"]["sigma"]))
     return float(predict_proba(z, np.array(model["weights"]), model["bias"])[0])
+# endlab
 
 
 def cams_forecast(cell_frame: pd.DataFrame, target: dt.date) -> float | None:

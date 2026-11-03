@@ -18,6 +18,7 @@ COLUMNS = ["cell_id", "date", "y", "mean_pm25"]
 _NOISE_DECIMALS = 9
 
 
+# lab:daily_labels
 def daily_labels(hourly: pd.DataFrame, threshold: float = THRESHOLD, min_hours: int = MIN_HOURS) -> pd.DataFrame:
     """Label each (cell, Tehran day) with y = 1 iff the mean PM2.5 is strictly above `threshold`.
 
@@ -40,3 +41,4 @@ def daily_labels(hourly: pd.DataFrame, threshold: float = THRESHOLD, min_hours: 
     daily = daily[daily["n"] >= min_hours].copy()
     daily["y"] = (daily["mean_pm25"].round(_NOISE_DECIMALS) > threshold).astype("int64")
     return daily[COLUMNS].reset_index(drop=True)
+# endlab

@@ -222,6 +222,7 @@ def predict_from_model(model: dict, df: pd.DataFrame) -> np.ndarray:
     return predict_proba(Z, np.array(model["weights"]), model["bias"])
 
 
+# lab:time_dot
 def time_dot(n: int = 1_000_000, seed: int = SEED) -> dict:
     """One dot product of n elements, as a Python loop and as np.dot."""
     rng = np.random.default_rng(seed)
@@ -236,6 +237,7 @@ def time_dot(n: int = 1_000_000, seed: int = SEED) -> dict:
     np.dot(va, vb)
     numpy_ms = (time.perf_counter() - start) * 1000
     return {"elements": n, "loop_ms": loop_ms, "numpy_ms": numpy_ms}
+# endlab
 
 
 # --- the run ------------------------------------------------------------------

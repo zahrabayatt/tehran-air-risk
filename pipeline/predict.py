@@ -1,7 +1,7 @@
 """Daily forecast: for every grid cell, the probability that tomorrow's Tehran-day mean PM2.5 exceeds 35.4.
 
     python -m pipeline.predict                 # issue a forecast for "now"
-    python -m pipeline.predict --now 2026-11-03T10:00:00Z --out /tmp/p.json   # replay / test
+    python -m pipeline.predict --now 2026-11-03T13:30:00Z --out /tmp/p.json   # replay / test
 
 Issue date D is the Tehran date of now when now is at or after 12:00 Asia/Tehran, otherwise the
 previous Tehran date, and the target is D+1. The runner's own date is never used, so a run that
@@ -49,6 +49,7 @@ PREDICTIONS_PATH = ROOT / "data" / "predictions.json"
 
 LIVE_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 PER_CELL_ATTEMPTS = 3      # tries per cell once the all-cells request has failed
+BUDGET_S = 600             # time allowed for all fetching in one run; what is not fetched by then becomes gaps
 STOP_AFTER = 3             # consecutive failed cells before the rest are given up on (the API is down)
 PROBABILITY_DECIMALS = 4
 EXIT_GAPS = 3
@@ -94,13 +95,14 @@ def _weather_incomplete(frame: pd.DataFrame, cells: Sequence[dict], stamps: pd.D
     return bad
 
 
-def fetch_frame(cells: Sequence[dict], day: dt.date, *, get, sleep, attempts=None) -> pd.DataFrame:
+def fetch_frame(cells: Sequence[dict], day: dt.date, *, get, sleep, attempts=None,
+                deadline=None, clock=None) -> pd.DataFrame:
     """Hourly inputs for UTC days D-1..D+1 (D+1 carries CAMS's forecast of the target day).
 
     Weather hours the historical forecast API has not published yet are filled from the live
     forecast API. Raises FetchError if the pollutant or historical request fails for good.
     """
-    options = {"get": get, "sleep": sleep}
+    options = {"get": get, "sleep": sleep, "deadline": deadline, "clock": clock}
     if attempts is not None:
         options["attempts"] = attempts
     one_day = dt.timedelta(days=1)
@@ -116,10 +118,15 @@ def fetch_frame(cells: Sequence[dict], day: dt.date, *, get, sleep, attempts=Non
     return frame
 
 
-def fetch_cells(cells: Sequence[dict], day: dt.date, *, get, sleep) -> tuple[pd.DataFrame, dict[str, str]]:
-    """(frame, errors): one request for all cells; if it fails, cell by cell so one bad cell costs only itself."""
+def fetch_cells(cells: Sequence[dict], day: dt.date, *, get, sleep, deadline=None,
+                clock=None) -> tuple[pd.DataFrame, dict[str, str]]:
+    """(frame, errors): one request for all cells; if it fails, cell by cell so one bad cell costs only itself.
+
+    Past `deadline` nothing more is requested: the cells still without data get a gap with the reason.
+    """
+    budget = {"deadline": deadline, "clock": clock}
     try:
-        return fetch_frame(cells, day, get=get, sleep=sleep), {}
+        return fetch_frame(cells, day, get=get, sleep=sleep, **budget), {}
     except FetchError as exc:
         first_error = str(exc)
     frames, errors, streak = [], {}, 0
@@ -128,7 +135,7 @@ def fetch_cells(cells: Sequence[dict], day: dt.date, *, get, sleep) -> tuple[pd.
             errors[cell["id"]] = f"fetch skipped: stopped after {STOP_AFTER} consecutive failed cells ({first_error})"
             continue
         try:
-            frames.append(fetch_frame([cell], day, get=get, sleep=sleep, attempts=PER_CELL_ATTEMPTS))
+            frames.append(fetch_frame([cell], day, get=get, sleep=sleep, attempts=PER_CELL_ATTEMPTS, **budget))
             streak = 0
         except FetchError as exc:
             errors[cell["id"]] = f"fetch failed: {exc}"
@@ -195,16 +202,21 @@ def make_entry(cell: dict, cell_frame: pd.DataFrame | None, error: str | None, *
 
 
 def run(now=None, *, get: Callable | None = None, sleep: Callable[[float], None] | None = None,
-        model_path=MODEL_PATH, predictions_path=PREDICTIONS_PATH, cells: Sequence[dict] = CELLS) -> list[dict]:
+        model_path=MODEL_PATH, predictions_path=PREDICTIONS_PATH, cells: Sequence[dict] = CELLS,
+        clock: Callable[[], float] | None = None) -> list[dict]:
     """Issue the forecast for `now`, merge it into the predictions file, and return the new entries.
 
-    `get` and `sleep` default to requests.get and time.sleep; tests inject fakes.
+    `get`, `sleep` and `clock` default to requests.get, time.sleep and time.monotonic; tests inject
+    fakes. Fetching has a budget of BUDGET_S seconds, so a hanging or rate-limited API ends in
+    recorded gaps rather than a run that never finishes.
     """
     now = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
     day = store.issue_date(now)
     model = load_model(model_path)
     existing = store.load(predictions_path)       # a corrupt file stops the run before any request
-    frame, errors = fetch_cells(cells, day, get=get or requests.get, sleep=sleep or time.sleep)
+    clock = clock or time.monotonic
+    frame, errors = fetch_cells(cells, day, get=get or requests.get, sleep=sleep or time.sleep,
+                                deadline=clock() + BUDGET_S, clock=clock)
     issued_at = store.utc_stamp(now)
     entries = []
     for cell in cells:

@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from pipeline import fill_outcomes, predict, store
+from pipeline import fetch, fill_outcomes, predict, store
 from pipeline.fetch import AIR_QUALITY_URL, FORECAST_URL, POLLUTANTS, WEATHER, FetchError, fetch_hourly
 from pipeline.grid import CELLS
 
@@ -139,7 +140,7 @@ def by_cell(entries):
     ("2026-11-03T08:29:59Z", "2026-11-02"),   # 11:59:59
     ("2026-11-03T08:30:00Z", "2026-11-03"),   # 12:00 Tehran exactly
     ("2026-11-03T09:00:00Z", "2026-11-03"),   # 12:30
-    ("2026-11-03T10:00:00Z", "2026-11-03"),   # the workflow's usual time, 13:30
+    ("2026-11-03T13:30:00Z", "2026-11-03"),   # the workflow's usual time, 17:00 Tehran
     ("2026-11-03T20:29:00Z", "2026-11-03"),   # 23:59 Tehran, same Tehran day
     ("2026-11-03T23:50:00Z", "2026-11-03"),   # 03:20 on the 4th in Tehran: still the 3rd's forecast
     ("2026-11-04T00:10:00Z", "2026-11-03"),   # 03:40 on the 4th
@@ -558,6 +559,38 @@ def test_fill_leaves_entries_alone_when_the_fetch_fails(tmp_path):
     assert path.read_text(encoding="utf-8") == before
 
 
+# 2026-11-04 ended at 20:30 UTC on the 4th; 14 days later is 2026-11-18T20:30:00Z.
+GIVE_UP_AT = "2026-11-18T20:30:00Z"
+
+
+def test_outcomes_older_than_14_days_are_given_up_with_a_reason_and_never_fetched(tmp_path):
+    api = day_api(50.0)
+    n, entries, path = fill(tmp_path, [entry()], api, GIVE_UP_AT)
+    assert n == 0 and api.calls == []
+    assert entries[0]["outcome"] is None and entries[0]["outcome_mean_pm25"] is None
+    assert "14 days" in entries[0]["outcome_note"]
+    before = path.read_bytes()
+    assert fill_outcomes.run(now=pd.Timestamp("2026-12-01T00:00:00Z"), get=api, sleep=Sleeper(), predictions_path=path) == 0
+    assert path.read_bytes() == before and api.calls == []                    # idempotent: nothing more is written
+
+
+def test_an_outcome_one_second_inside_the_14_day_window_is_still_tried(tmp_path):
+    api = day_api(50.0)
+    n, entries, _ = fill(tmp_path, [entry()], api, "2026-11-18T20:29:59Z")
+    assert n == 1 and entries[0]["outcome"] == 1 and "outcome_note" not in entries[0]
+
+
+def test_giving_up_on_old_days_does_not_stop_recent_ones_being_filled(tmp_path):
+    api = day_api(50.0)
+    old, recent = entry(target="2026-11-04"), entry(target="2026-11-20")
+    n, entries, _ = fill(tmp_path, [old, recent], api, "2026-11-22T08:00:00Z")
+    by_date = {e["target_date"]: e for e in entries}
+    assert n == 1 and by_date["2026-11-20"]["outcome"] == 1 and "outcome_note" not in by_date["2026-11-20"]
+    assert by_date["2026-11-04"]["outcome"] is None and "outcome_note" in by_date["2026-11-04"]
+    (air,) = api.urls("air")
+    assert air["start_date"] == "2026-11-19"                                   # the old day was not part of the request
+
+
 def test_fill_with_no_file_or_no_entries_is_a_noop(tmp_path):
     api = FakeApi()
     assert fill_outcomes.run(now=NOW, get=api, sleep=Sleeper(), predictions_path=tmp_path / "none.json") == 0
@@ -590,7 +623,8 @@ WORKFLOW = ROOT / ".github" / "workflows" / "daily.yml"
 
 def test_workflow_schedule_commit_scope_and_deploy():
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "cron: '0 10 * * *'" in text and "workflow_dispatch:" in text
+    assert "cron: '30 13 * * *'" in text and "workflow_dispatch:" in text
+    assert "13:30 UTC" in text and "17:00" in text and "10:00 UTC" not in text
     assert "python -m pipeline.predict" in text and "python -m pipeline.fill_outcomes" in text
     assert text.count("git add") == 1 and "git add data/predictions.json" in text
     assert "github-actions[bot]" in text
@@ -602,6 +636,117 @@ def test_workflow_schedule_commit_scope_and_deploy():
     for line in text.splitlines():
         if "uses:" in line:
             assert "@v" in line and line.split("@v")[1].count(".") == 2, f"unpinned action: {line.strip()}"
+
+
+def test_cron_matches_the_schedule_the_lab_displays():
+    """The daily workflow's cron and the Lab's displayed time come from the same 13:30 UTC."""
+    cron = re.search(r"cron: '(\d+) (\d+) \* \* \*'", WORKFLOW.read_text(encoding="utf-8"))
+    minute, hour = int(cron.group(1)), int(cron.group(2))
+    config = (ROOT / "web" / "src" / "config.ts").read_text(encoding="utf-8")
+    assert re.search(rf"DAILY_RUN_UTC = '{hour:02d}:{minute:02d}'", config)
+    # 13:30 UTC is after the 12:00 Tehran cutoff (08:30 UTC) and after the 00 UTC CAMS run is available.
+    assert (hour, minute) >= (8, 30)
+
+
+def step_block(text: str, name: str) -> str:
+    """The text of the step called `name` (from its `- name:` line to the next step or job)."""
+    start = text.index(f"- name: {name}")
+    rest = text[start + 1:]
+    stops = [rest.find(m) for m in ("\n      - ", "\n  build:") if rest.find(m) != -1]
+    return text[start:start + 1 + min(stops)] if stops else text[start:]
+
+
+def step_timeout_s(text: str, name: str) -> int:
+    return int(re.search(r"timeout-minutes: (\d+)", step_block(text, name)).group(1)) * 60
+
+
+def test_worst_case_retry_time_is_bounded_below_the_step_timeouts():
+    """Hanging or rate-limited API: every request chain is cut off by the run's time budget, so the
+    worst case is the budget plus one request already in flight, well under the step and job timeouts."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    predict_step = step_timeout_s(text, "Issue today's forecast")
+    fill_step = step_timeout_s(text, "Fill outcomes for finished days")
+    job = int(re.search(r"  forecast:[\s\S]*?timeout-minutes: (\d+)", text).group(1)) * 60
+    in_flight = fetch.TIMEOUT_S                                  # one attempt that began just before the budget ran out
+    assert predict.BUDGET_S + in_flight < predict_step
+    assert fill_outcomes.BUDGET_S + in_flight < fill_step
+    setup_and_commit = 10 * 60                                   # checkout, pip install, commit, push
+    assert predict_step + fill_step + setup_and_commit <= job
+    # And the naive worst case without a budget (attempts x (timeout + longest wait) x requests in one
+    # run) is what the budget exists to cut: it is far above the step timeout.
+    longest_wait = max(fetch.RATE_LIMIT_WAIT_S, fetch.BACKOFF_S * 2 ** (fetch.ATTEMPTS - 2))
+    naive = fetch.ATTEMPTS * (fetch.TIMEOUT_S + longest_wait) * 3
+    assert naive > predict_step
+    assert fetch.TIMEOUT_S <= 60
+
+
+def test_workflow_has_no_shell_retry_loop_and_keeps_gaps_on_failure():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "for attempt" not in text and "sleep 120" not in text            # the scripts already retry
+    for name in ("Issue today's forecast", "Fill outcomes for finished days"):
+        block = step_block(text, name)
+        assert "continue-on-error: true" in block and "timeout-minutes:" in block, name
+    assert "if: ${{ !cancelled() }}" in step_block(text, "Commit predictions")
+    assert "github.ref == 'refs/heads/main'" in text.split("  forecast:", 1)[1].split("  build:", 1)[0]
+
+
+class Clock:
+    """A fake monotonic clock: only sleeping and timing out move it."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def test_a_hanging_api_still_records_a_gap_for_every_cell_within_the_budget(tmp_path):
+    import requests
+    clock = Clock()
+    attempts = []
+
+    def hang(url, params, timeout=None):
+        attempts.append(timeout)
+        clock.now += timeout                                    # the request ran until its timeout
+        raise requests.Timeout("read timed out")
+
+    path = tmp_path / "predictions.json"
+    new = predict.run(now=NOW, get=hang, sleep=clock.sleep, clock=clock, predictions_path=path, model_path=MODEL_PATH)
+    assert len(new) == len(CELLS) and all(e["gap"] for e in new)
+    assert {e["cell_id"] for e in saved(path)} == set(CELL_IDS)             # the gaps were written
+    assert clock.now <= predict.BUDGET_S + fetch.TIMEOUT_S
+    assert set(attempts) == {fetch.TIMEOUT_S}
+
+
+def test_budget_stops_retries_at_once_when_a_wait_would_overrun_it():
+    clock = Clock()
+
+    def limited(url, params, timeout=None):
+        return Resp(429, "slow down")
+
+    with pytest.raises(FetchError, match="time budget"):
+        fetch_hourly(CELLS[:1], "2026-11-01", "2026-11-01", get=limited, sleep=clock.sleep, clock=clock,
+                     deadline=clock() + 100)                    # first wait (65 s) fits, second would not
+    assert clock.now == fetch.RATE_LIMIT_WAIT_S
+
+
+def test_fill_outcomes_gives_up_when_its_budget_is_spent(tmp_path):
+    import requests
+    clock = Clock()
+
+    def hang(url, params, timeout=None):
+        clock.now += timeout
+        raise requests.Timeout("read timed out")
+
+    path = tmp_path / "p.json"
+    store.save(path, [entry()])
+    with pytest.raises(FetchError):
+        fill_outcomes.run(now=pd.Timestamp("2026-11-05T08:00:00Z"), get=hang, sleep=clock.sleep, clock=clock,
+                          predictions_path=path)
+    assert clock.now <= fill_outcomes.BUDGET_S + fetch.TIMEOUT_S
 
 
 # ------------------------------------------------------------------ live vs history measurement
@@ -664,5 +809,14 @@ def test_each_job_has_exactly_the_permissions_it_needs():
     assert job_permissions(text) == {
         "forecast": {"contents": "write"},
         "build": {"contents": "read", "pages": "write"},         # actions/configure-pages
+        "deploy": {"pages": "write", "id-token": "write"},       # actions/deploy-pages
+    }
+
+
+def test_pages_workflow_gives_only_the_deploy_job_the_oidc_token():
+    text = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+    assert "\npermissions:\n  contents: read\n\nconcurrency:" in text       # nothing more by default
+    assert job_permissions(text) == {
+        "build": {"contents": "read", "pages": "write"},         # actions/configure-pages; no id-token
         "deploy": {"pages": "write", "id-token": "write"},       # actions/deploy-pages
     }

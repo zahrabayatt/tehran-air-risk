@@ -296,7 +296,7 @@ WX_POINT = {"latitude": 35.70, "longitude": 51.34}  # inside West Tehran
 WX_VARS = ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "precipitation", "boundary_layer_height"]
 WX_MODEL = "ecmwf_ifs"          # ECMWF IFS HRES 9 km, the model with the longest archive in every API
 CUTOFF_UTC = "08:30"            # 12:00 Asia/Tehran (UTC+03:30; Iran has had no DST since 2022)
-PIPELINE_UTC = "10:00"          # daily workflow time
+PIPELINE_UTC = "13:30"          # daily workflow time
 EQUIV_TARGETS = ["2026-10-12", "2026-10-13", "2026-10-14"]  # target days D for the comparison
 
 
@@ -630,7 +630,7 @@ def stage_profile():
     # ---- weather
     add("## Weather: can tomorrow's forecast, as issued, be reproduced?\n")
     add(f"Point {w['point']['latitude']}, {w['point']['longitude']} (West Tehran); model `{w['model']}` (ECMWF IFS HRES 9 km); variables temperature_2m, "
-        "relative_humidity_2m, wind_speed_10m, precipitation, boundary_layer_height. Cutoff 12:00 Tehran = 08:30 UTC; the workflow runs at 10:00 UTC. "
+        "relative_humidity_2m, wind_speed_10m, precipitation, boundary_layer_height. Cutoff 12:00 Tehran = 08:30 UTC; the workflow runs at 13:30 UTC. "
         "Coverage was probed at this one point and is assumed the same at the other 11 cell centres.\n")
     meta = w["ecmwf_ifs_run_meta"]
     add(f"- The 00 UTC IFS run became available {meta['delay_hours']} h after initialisation (one observation of Open-Meteo's run metadata: initialised "

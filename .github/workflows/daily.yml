@@ -111,6 +111,10 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # The same group as pages.yml, so this deploy and a deploy after a push to main never overlap.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write

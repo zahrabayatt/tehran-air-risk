@@ -1,11 +1,12 @@
 import { Suspense, lazy } from 'react';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { ComingPage } from './pages/ComingPage';
 import { ForecastPage } from './pages/Forecast';
 
 // The Lab (with its equations and code walkthroughs) loads only when its page is opened.
 const LabPage = lazy(() => import('./pages/LabPage').then((m) => ({ default: m.LabPage })));
+// The Data page carries the profile and history files, so it loads only when its page is opened too.
+const DataPage = lazy(() => import('./pages/DataPage').then((m) => ({ default: m.DataPage })));
 
 export function App() {
   return (
@@ -29,7 +30,22 @@ export function App() {
               </Suspense>
             }
           />
-          <Route path="data" element={<ComingPage title="Data" />} />
+          <Route
+            path="data"
+            element={
+              <Suspense
+                fallback={
+                  <main className="page">
+                    <p role="status" className="notice">
+                      Loading the Data page…
+                    </p>
+                  </main>
+                }
+              >
+                <DataPage />
+              </Suspense>
+            }
+          />
           <Route path="*" element={<ForecastPage />} />
         </Route>
       </Routes>

@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 const ROUTES = [
   { hash: '#/', heading: null, nav: 'Forecast' },
   { hash: '#/lab', heading: 'Model Lab', nav: 'Model Lab' },
-  { hash: '#/data', heading: 'Data', nav: 'Data' },
+  { hash: '#/data', heading: 'Modeled air, not measured air', nav: 'Data' },
 ];
 
 for (const r of ROUTES) {
@@ -33,7 +33,7 @@ test('pill navigation moves between routes', async ({ page }) => {
   await nav.getByRole('link', { name: 'Model Lab' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Model Lab' })).toBeVisible();
   await nav.getByRole('link', { name: 'Data' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Data' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Modeled air, not measured air' })).toBeVisible();
 });
 
 test('theme button switches and survives a reload', async ({ page }) => {

@@ -1,0 +1,84 @@
+/* Data page. Layout and copy follow docs/design/AirData.dc.html; colours come from theme/tokens.css. */
+
+.data-page { gap: 40px; padding-top: 40px; }
+.data-page h2 { margin: 0 0 4px; font-size: clamp(22px, 3vw, 30px); font-weight: 700; letter-spacing: -0.025em; }
+.data-page .card h2 { font-size: 17px; font-weight: 600; letter-spacing: 0; margin: 0; }
+.data-section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.data-page .small { max-width: 800px; }
+.data-page .mono { font-family: 'Geist Mono Variable', ui-monospace, monospace; }
+.data-page .muted { color: var(--mut); }
+
+.data-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 24px 0;
+}
+.data-facts dt { font-size: 14px; color: var(--mut); }
+.data-facts dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+
+.splitbar { display: flex; height: 56px; border-radius: 4px; overflow: hidden; font-size: 14px; font-weight: 500; }
+.splitbar__part { flex-basis: 0; display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; padding: 0 4px; }
+.splitbar__part--train { background: var(--ac); color: var(--on); }
+.splitbar__part--selection { background: var(--acs); color: var(--ink); }
+.splitbar__part--held_out { background: var(--ink); color: var(--bg); }
+
+.data-two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 32px; align-items: start; }
+
+.funnel { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
+.funnel__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  row-gap: 6px;
+  align-items: baseline;
+}
+.funnel__label { display: flex; flex-direction: column; gap: 2px; font-weight: 500; }
+.funnel__note { color: var(--mut); font-size: 14px; font-weight: 400; }
+.funnel__count { text-align: right; font-size: 18px; }
+.funnel__track { grid-column: 1 / -1; display: block; height: 18px; background: var(--rule); border-radius: 2px; }
+.funnel__bar { display: block; height: 18px; background: var(--ac); border-radius: 2px; }
+
+.data-pairs { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; font-size: 15px; }
+.data-pairs dt { color: var(--mut); }
+.data-pairs dd { margin: 0; text-align: right; }
+
+.ratebar { display: grid; grid-template-columns: minmax(60px, 1fr) 56px; gap: 12px; align-items: center; }
+.ratebar__track { display: block; height: 16px; background: var(--rule); border-radius: 2px; }
+.ratebar__fill { display: block; height: 16px; background: var(--ac); border-radius: 2px; min-width: 2px; }
+.ratebar__value { text-align: right; font-size: 14px; }
+
+.data-scroll { overflow-x: auto; background: var(--sf); border: 1px solid var(--rule); border-radius: 20px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.data-scroll .data-table { min-width: 560px; }
+.data-table th {
+  text-align: left;
+  color: var(--mut);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.data-table td,
+.data-table tbody th { padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+.data-table tbody th { color: var(--ink); font-size: 15px; font-weight: 500; }
+.data-table tbody tr:last-child td,
+.data-table tbody tr:last-child th { border-bottom: 0; }
+.data-table .num { text-align: right; }
+.data-table td.mono { font-size: 14px; }
+
+.data-limits { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; max-width: 800px; }
+
+@media (max-width: 900px) {
+  .data-two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  /* Narrow tables fit the phone; one that is still too wide scrolls inside its own box. */
+  .data-scroll .data-table { min-width: 0; }
+  .data-table th, .data-table td, .data-table tbody th { padding: 10px 8px; }
+  .ratebar { grid-template-columns: minmax(20px, 1fr) 44px; gap: 6px; }
+  .splitbar { font-size: 12px; }
+}

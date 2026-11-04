@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+# Deploys only after the CI workflow has finished successfully on a push to main,
+# and deploys exactly the commit that CI checked. The daily forecast workflow deploys its own
+# commit (a commit pushed with GITHUB_TOKEN does not start other workflows), through the same
+# `pages` concurrency group below, so two deploys never overlap.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: pnpm/action-setup@v4.1.0
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # `build` copies model/model.json and data/predictions.json into the site, type checks, and builds into web/dist.
+      - run: pnpm build
+      - uses: actions/configure-pages@v5.0.0
+      - uses: actions/upload-pages-artifact@v3.0.1
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4.0.5

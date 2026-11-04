@@ -81,7 +81,7 @@ Hourly data requested from 2022-07-01 to 2026-11-02 (the last complete Tehran da
 
 ## Weather: can tomorrow's forecast, as issued, be reproduced?
 
-Point 35.7, 51.34 (West Tehran); model `ecmwf_ifs` (ECMWF IFS HRES 9 km); variables temperature_2m, relative_humidity_2m, wind_speed_10m, precipitation, boundary_layer_height. Cutoff 12:00 Tehran = 08:30 UTC; the workflow runs at 10:00 UTC. Coverage was probed at this one point and is assumed the same at the other 11 cell centres.
+Point 35.7, 51.34 (West Tehran); model `ecmwf_ifs` (ECMWF IFS HRES 9 km); variables temperature_2m, relative_humidity_2m, wind_speed_10m, precipitation, boundary_layer_height. Cutoff 12:00 Tehran = 08:30 UTC; the workflow runs at 13:30 UTC. Coverage was probed at this one point and is assumed the same at the other 11 cell centres.
 
 - The 00 UTC IFS run became available 6.8 h after initialisation (one observation of Open-Meteo's run metadata: initialised 2026-11-03T00:00:00, available 2026-11-03T06:47:54). At 08:30 UTC only the 00 UTC run of the same day is in hand; the 06 UTC run arrives near 13:00 UTC. A forecast "as issued before the cutoff" for tomorrow is the 00 UTC run of today, at lead times of about 21 to 44 hours.
 
@@ -177,6 +177,12 @@ Weather from the Historical Forecast API fetched now against the same variables 
 For the same 72 (cell, day) pairs, probability from the cached history against probability from the fresh fetch: mean absolute difference 0.0000, maximum 0.0000, 0 change(s) of predicted class at 0.5. Feature differences (ug/m3): `pm2_5_mean` mean 0.000 / max 0.000; `pm2_5_max` mean 0.000 / max 0.000; `pm2_5_last` mean 0.000 / max 0.000.
 
 <!-- live-vs-history:end -->
+
+### CAMS run availability and the 13:30 UTC choice (measured 2026-11-04, one observation)
+
+Open-Meteo publishes the state of the `cams_global` air-quality domain at `https://air-quality-api.open-meteo.com/data/cams_global/static/meta.json` (fetched 2026-11-04 about 11:35 UTC; the raw copy is `data/raw/cams_meta_2026-11-04.json`, git-ignored). The file reports only the latest run, so this is a single observation, not a distribution. It says the domain updates every 12 hours (`update_interval_seconds` 43200) and that the latest run was initialised at 2026-11-04 00:00 UTC and became available at 2026-11-04 09:43 UTC: a delay of about 9.7 hours.
+
+The daily workflow therefore runs at 13:30 UTC (17:00 Tehran). That is about 3.8 hours after the 00 UTC run was available on the day measured, so the day's 00 UTC run is in hand with room to spare, and 13:30 to 13:36 UTC is the window in which the live inputs were compared with the history above and found identical. An earlier choice of 10:00 UTC would have left only about 17 minutes after the availability seen here, and was never compared against the history. A later or slower CAMS run than the one observed would still have to arrive more than 3.8 hours late to matter. The observation says nothing about days with a delayed run; a run whose inputs are not yet published records gaps rather than inventing values.
 
 ## Reproduce
 

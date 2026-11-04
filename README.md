@@ -27,13 +27,13 @@ On those held-out days (4,380 cell-days, 9.1% of them positive) the logistic cos
 The model beats both simple guesses. The comparison is made on the same days, with the baselines fitted on training rows only. The model is not tuned after seeing the held-out year. Two cautions go with it:
 
 - The selection months are one warm half-year with only 85 positive days, so the choice between settings rests on very little. Only two feature sets and five penalty strengths were compared.
-- The forecast is for a 44 by 36 km square, not a street or a neighborhood, and it is a model estimate. It is not an official alert or medical advice.
+- The forecast is for a square of about 44 by 36 km, not a street or a neighborhood, and it is a model estimate. It is not an official alert or medical advice.
 
 The full reading is in [`docs/DATA_CARD.md`](docs/DATA_CARD.md).
 
 ## How the daily forecast works
 
-A scheduled GitHub Actions workflow ([`.github/workflows/daily.yml`](.github/workflows/daily.yml)) runs every day at 10:00 UTC (13:30 in Tehran, after the 12:00 Tehran cutoff):
+A scheduled GitHub Actions workflow ([`.github/workflows/daily.yml`](.github/workflows/daily.yml)) runs every day at 13:30 UTC (17:00 in Tehran, well after the 12:00 Tehran cutoff, and after Open-Meteo has published the day's 00 UTC CAMS run):
 
 1. It fetches today's hourly values for all twelve squares and builds the model's inputs from the 12 hours up to the cutoff only. The target date comes from Tehran time inside the script, never from the runner's clock.
 2. The one **frozen** model (`model/model.json`) gives each square a probability for tomorrow. Retraining is a deliberate manual step, never part of the daily run.
@@ -76,7 +76,7 @@ Fetching the history takes a long time because the free API has rate limits. Tra
 ## Data
 
 - **Air quality:** [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api), CAMS global model (Copernicus Atmosphere Monitoring Service). License **CC-BY 4.0**; credit CAMS and Open-Meteo. PM2.5, PM10, NO2, SO2, CO and O3, hourly, for 12 cells of the model grid (about 44 by 36 km each), from 2022-08-04 to 2026-11-02 (1,552 days per cell, 18,624 labelled cell-days, 7.0% positive).
-- **Weather:** Open-Meteo Historical Forecast API (ECMWF IFS), CC-BY 4.0. Built as candidate inputs; the deployed model does not use it.
+- **Weather:** Open-Meteo Historical Forecast API (ECMWF IFS), CC-BY 4.0; credit Open-Meteo and ECMWF (IFS open data). Built as candidate inputs; the deployed model does not use it.
 - **City outline:** © OpenStreetMap contributors, **ODbL**, simplified and embedded in the site.
 - **Threshold:** the PM2.5 24-hour breakpoint of 35.4 μg/m³ from U.S. EPA, 89 FR 16202 (2024-03-06), Appendix G to 40 CFR Part 58. The site says "above 35.4 μg/m³" and does not claim an official category.
 
@@ -95,7 +95,7 @@ Open-Meteo's free tier is for non-commercial use, so the site has no ads or subs
 
 This project follows **Course 1 of the Machine Learning Specialization** (Supervised Machine Learning: Regression and Classification), the logistic regression part: classification, the sigmoid, the decision boundary, the logistic loss and cost, gradient descent, vectorization, learning rate, feature scaling, feature engineering, overfitting and regularization. The linear regression half is a separate project, `tehran-house-price`.
 
-Out of scope, because they are not part of what this project covers: Accuracy, Precision, Recall, F1-score, Confusion matrix, ROC-AUC, decision threshold analysis, and named error metrics such as MSE, RMSE and MAE. The decision threshold on the probability is fixed at 0.5. A test (`tests/test_scope.py`) fails if these names appear in the site, the training and pipeline code, the exported data or the docs.
+Out of scope, because they are not part of what this project covers: Accuracy, Precision, Recall, F1-score, Confusion matrix, ROC-AUC, decision threshold analysis, and named error metrics such as MSE, RMSE and MAE. The decision threshold on the probability is fixed at 0.5. A test (`tests/test_scope.py`) fails if these names appear anywhere in the site source, the training and pipeline code, the exported data or the docs. Only two things are exempt: the one line in this README, the progress tracker and the project spec that says the names are out of scope, and the site's own test files, which hold the list so they can check that no page shows it.
 
 [`docs/LEARNING_PROGRESS_TRACKER.md`](docs/LEARNING_PROGRESS_TRACKER.md) records which concepts are implemented and where.
 
@@ -113,4 +113,4 @@ docs/       project spec, learning notes, data card, data profile, changelog, pr
 
 ## License
 
-Code: MIT, see [`LICENSE`](LICENSE). Air data credit stays with CAMS and Open-Meteo under CC-BY 4.0; the city outline is ODbL.
+Code: MIT, see [`LICENSE`](LICENSE). Air data credit stays with CAMS and Open-Meteo, and weather credit with Open-Meteo and ECMWF, under CC-BY 4.0; the city outline is ODbL.

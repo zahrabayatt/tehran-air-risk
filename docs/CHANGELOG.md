@@ -2,6 +2,20 @@
 
 All notable changes to this project. Dates are real dates, from the commit history.
 
+## 1.0.1 - 2026-11-04
+
+Changes from the final review.
+
+### Changed
+
+- The daily workflow now runs at 13:30 UTC (17:00 Tehran) instead of 10:00 UTC. Live inputs matched the stored history when fetched at 13:30 to 13:36 UTC, and Open-Meteo's metadata shows the 00 UTC CAMS run is available about 9.7 hours after it starts (see "Live vs history" in `docs/DATA_PROFILE.md`). The Lab reads the time from one constant, `DAILY_RUN_UTC` in `web/src/config.ts`.
+- The daily run is bounded: one request attempt is cut off after 45 seconds, fetching stops after a time budget (600 s for forecasts, 300 s for outcomes), the workflow has no shell retry loop, each step has a timeout and does not stop the commit step, and the commit step runs even if a step was cut off, so gaps are always committed. The workflow runs only from `main`, and the `pages.yml` build job no longer receives an identity-token permission.
+- Outcomes still missing 14 days after their target day are no longer retried; they stay empty and carry an `outcome_note`.
+- The forecast log says forecasts are "usually" saved before the day begins and marks any saved after it began. The Forecast page says when the forecast's day has ended in Tehran.
+- Model Lab wording: no air-quality category names (the label is "above 35.4 μg/m³"), the season axis is described in plain words before sine and cosine are taught, the scaling step describes what its demo shows, and the held-out step states the limit of the selection months.
+- Weather credit: ECMWF is credited beside Open-Meteo for the IFS weather values.
+- Docs: tracker code references, scope-test description and the 44 by 36 km wording corrected.
+
 ## 1.0.0 - 2026-11-04
 
 First complete version.

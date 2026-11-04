@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { GITHUB_URL } from '../src/config';
 
 const TITLES = [
   'Data',
@@ -337,14 +338,17 @@ test('the explanation tabs switch between math, code and scikit-learn', async ({
   await expect(page.getByTestId('sk-tab')).toContainText('LogisticRegression');
 });
 
-test('code rows come from the repository, with the file named and no link without a repository URL', async ({ page }) => {
+test('code rows come from the repository, with the file named and a permalink into the repository', async ({ page }) => {
   await goStep(page, 15);
   await page.getByRole('button', { name: 'The code' }).click();
   const code = page.getByTestId('code-tab');
   await expect(code).toContainText('def compute_cost_reg(X, y, w, b, lambda_):');
   await expect(code).toContainText('training/model.py');
   await expect(code).toContainText('training/experiments.py');
-  await expect(code.getByRole('link')).toHaveCount(0);
+  const hrefs = await code.getByRole('link').evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
+  expect(hrefs.length).toBeGreaterThan(0);
+  for (const h of hrefs) expect(h.startsWith(`${GITHUB_URL}/blob/`), h).toBe(true);
+  expect(hrefs.some((h) => h.includes('training/model.py'))).toBe(true);
 });
 
 test('every step and every plot view draws finite numbers', async ({ page }) => {

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { GITHUB_URL, HOUSE_URL as SIBLING } from '../src/config';
 
 // The Forecast heading is the day's headline, so its text is tested in forecast.spec.ts.
 const ROUTES = [
@@ -49,7 +50,7 @@ test('theme button switches and survives a reload', async ({ page }) => {
   await expect(page.locator('.app')).not.toHaveClass(/dark/);
 });
 
-test('footer names the author, credits the sources and hides empty links', async ({ page }) => {
+test('footer names the author, credits the sources and links to the code and the other project', async ({ page }) => {
   await page.goto('#/');
   const footer = page.getByRole('contentinfo');
   await expect(footer).toContainText('Built by Zahra Bayat.');
@@ -57,7 +58,10 @@ test('footer names the author, credits the sources and hides empty links', async
   await expect(footer).toContainText('ECMWF via Open-Meteo');
   await expect(footer).toContainText('Both CC-BY 4.0');
   await expect(footer).toContainText('OpenStreetMap contributors, ODbL');
-  await expect(footer.getByRole('link')).toHaveCount(0);
+  const hrefs = await footer.getByRole('link').evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
+  expect(hrefs.some((h) => h.startsWith(GITHUB_URL))).toBe(true);
+  expect(hrefs.some((h) => h.startsWith(SIBLING))).toBe(true);
+  for (const h of hrefs) expect(h.startsWith(GITHUB_URL) || h.startsWith(SIBLING), h).toBe(true);
 });
 
 test('fonts are self-hosted', async ({ page }) => {

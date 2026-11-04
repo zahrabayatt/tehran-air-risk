@@ -19,7 +19,7 @@ const TITLES = [
   'Held-out result',
   'Daily forecast',
 ];
-const PARTS = ['The problem', 'The model', 'The cost', 'Training', 'Generalizing', 'The result'];
+const PARTS = ['The problem', 'The model', 'The cost', 'Training', 'Better features', 'The result'];
 /** Steps that show the training bar. Gradient descent is the first. */
 const TRAINING = [10, 12, 13];
 const EXCLUDED = /\b(MSE|RMSE|accuracy|precision|recall|F1|ROC|AUC|confusion matrix|threshold analysis|mean squared|root mean|L1 loss|L2 loss)\b/i;

@@ -35,7 +35,7 @@ const WEEKS = [
   'Project step',
 ];
 const PARTS: Array<[number, string]> = [
-  [1, 'The problem'], [4, 'The model'], [7, 'The cost'], [10, 'Training'], [14, 'Generalizing'], [16, 'The result'],
+  [1, 'The problem'], [4, 'The model'], [7, 'The cost'], [10, 'Training'], [14, 'Better features'], [16, 'The result'],
 ];
 
 const EXCLUDED = /\b(MSE|RMSE|accuracy|precision|recall|F1|ROC|AUC|confusion matrix|threshold analysis|mean squared|root mean|L1 loss|L2 loss)\b/i;

@@ -40,8 +40,8 @@ export const PROBLEM: Stage[] = [
     ],
     math: [
       {
-        tex: tex`\text{daily PM2.5} = \frac{1}{24} \sum_{h=1}^{24} \text{PM2.5}_h`,
-        why: 'CAMS gives modelled hourly values. A Tehran-time calendar day is summarised by the mean of its hours, and it counts only when at least 20 of the 24 hours exist.',
+        tex: tex`\text{daily PM2.5} = \frac{1}{n_h} \sum_{h \in \text{hours present}} \text{PM2.5}_h \qquad n_h \ge 20`,
+        why: 'CAMS gives modelled hourly values. A Tehran-time calendar day is summarised by the mean of the hours that exist, and it counts only when at least 20 of its 24 hours do (n_h ≥ 20).',
       },
       {
         tex: tex`\left(x^{(i)},\; y^{(i)}\right) \quad \text{for } i = 0, 1, \ldots, m-1`,
@@ -106,7 +106,7 @@ export const PROBLEM: Stage[] = [
     },
     code: [lab('build_row')],
     sk: '# No direct equivalent. Labels come from the problem:\ny = (tomorrow_pm25 > 35.4).astype(int)',
-    skNote: 'scikit-learn cannot check time alignment for you, so this project tests it directly (tests/test_leakage.py).',
+    skNote: 'scikit-learn cannot check time alignment for you, so this project checks it with automated tests (tests/test_leakage.py) that fail the build if an input is later than the cutoff.',
     tries: [
       {
         label: 'A stricter threshold',

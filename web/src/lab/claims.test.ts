@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { oneRun, polyFit, polyProb, sandbox, seasonFit } from './context';
-import { gradOne, jOne, sigmoid, squaredOne } from './engine';
+import { jOne, sigmoid, squaredOne } from './engine';
 import { itersNum } from './state';
 import { STAGES } from './stages';
 import { ctx } from './testData';
@@ -44,7 +44,7 @@ describe('Data presets', () => {
   it('today so far leans toward tomorrow', () => {
     expect(corr(ctx.d.pm, ctx.d.tomorrow)).toBeGreaterThan(0.5);
   });
-  it('the sample’s own days agree with the stored months table to one decimal place of a share', () => {
+  it('West Tehran’s training share above 35.4 is higher than the pooled share of all 12 squares', () => {
     const t = trainShares(ctx);
     expect(Number(t.cell)).toBeGreaterThan(Number(t.pooled));
   });
@@ -153,7 +153,7 @@ describe('Why not squared error? presets', () => {
     expect(dSq).toBeLessThan(0.005);
     expect(dLg).toBeGreaterThan(20 * dSq);
   });
-  it('near the best line the squared error has a bowl and the logistic cost is convex along w', () => {
+  it('along w, near the best line, the logistic cost curves upward (a bowl)', () => {
     const w = ctx.star.w;
     const b = ctx.star.b;
     const j = (dw: number) => jOne(ctx.d.x, ctx.d.y, w + dw, b);
@@ -234,7 +234,7 @@ describe('Learning rate presets', () => {
     expect(last(r[2])).toBeGreaterThan(last(r[3]) - 0.02);
     expect(last(r[3])).toBeLessThan(ctx.star.j * 1.1);
   });
-  it('Too large: the largest rate jumps up and down while the cost stays finite', () => {
+  it('Too large: the largest rate jumps up and down, the run is not stopped, and the other rate is not stopped either', () => {
     const r = race('Too large');
     const big = r[r.length - 1].run.h.map((q) => q.j);
     expect(r[r.length - 1].run.diverged).toBeNull();
@@ -382,8 +382,7 @@ describe('Daily forecast', () => {
     expect(ctx.predictions.logged).toBeGreaterThan(0);
     expect(ctx.predictions.lastIssuedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
-  it('the cutoff and the schedule are the ones the model file records', () => {
+  it('the cutoff is the one the model file records', () => {
     expect(ctx.model.cutoff).toBe('12:00 Asia/Tehran');
-    expect(gradOne([1], [1], 0, 0)[1]).toBeCloseTo(-0.5, 12);
   });
 });

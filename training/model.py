@@ -140,11 +140,14 @@ def compute_gradient_reg(X, y, w, b, lambda_):
 def gradient_descent(X, y, w, b, alpha, num_iters, lambda_=0.0):
     """Batch gradient descent. Returns (w, b, J_history).
 
-    J_history[i] is the cost after update i + 1. If the cost ever stops being
-    finite (alpha too large), descent stops at once: the result is the last
-    finite (w, b), and J_history holds only finite costs, so
+    J_history[i] is the cost after update i + 1. If an update makes any weight or
+    the bias not finite, or makes the sum of squared weights overflow, or makes
+    the cost not finite (alpha too large), descent stops at once: the result is
+    the last finite (w, b), and J_history holds only finite costs, so
     len(J_history) < num_iters means it diverged on update len(J_history) + 1.
-    The inputs are never modified.
+    The parameter check is explicit because the logistic cost itself stays
+    finite when probabilities hit 0 or 1 (log arguments are clipped), so without
+    it only the lambda * sum(w ** 2) term would notice. The inputs are never modified.
     """
     w = np.array(w, dtype=float)
     b = float(b)
@@ -154,6 +157,8 @@ def gradient_descent(X, y, w, b, alpha, num_iters, lambda_=0.0):
             dj_dw, dj_db = compute_gradient(X, y, w, b, lambda_)
             w_new = w - alpha * dj_dw
             b_new = b - alpha * dj_db
+            if not (np.all(np.isfinite(w_new)) and np.isfinite(b_new) and np.isfinite(w_new @ w_new)):
+                break
             cost = compute_cost(X, y, w_new, b_new, lambda_)
             if not np.isfinite(cost):
                 break

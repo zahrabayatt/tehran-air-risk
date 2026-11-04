@@ -1,16 +1,16 @@
 /**
  * The Lab's math, in plain TypeScript with no React and no imports.
  *
- * Everything here runs on the sample rows in sample.json (training days only) and nothing else. It
- * never reads or writes the frozen model, and it never changes its inputs, so a Lab experiment
- * cannot disturb the Forecast page.
+ * Everything here runs on the sample rows in sample.json (training days only). The only function that
+ * touches the frozen model is applyFrozen, which reads its numbers and never writes them. Nothing here
+ * changes its inputs, so a Lab experiment cannot disturb the Forecast page.
  *
  * The maths is training/model.py, line for line:
  *   sigmoid   g(z) = 1 / (1 + e^-z), computed from e^-|z| so no exponent is ever positive
  *   cost      J = -1/m * sum(y log f + (1 - y) log(1 - f)) + lambda/(2m) * sum(w^2)
  *   gradient  dJ/dw = X^T (f - y) / m + lambda/m * w,   dJ/db = mean(f - y)
  * Probabilities are never clipped; only the argument of each log is clipped at EPS inside the cost.
- * The bias b is never penalized. tests/engine.test.ts compares with Python within 1e-9 relative.
+ * The bias b is never penalized. web/src/lab/engine.test.ts compares with Python within 1e-9 relative.
  *
  * Runs are numbered by state. A run of `iters` updates has iters + 1 states, 0 to iters: state k is
  * the point after k updates, and state 0 is the starting point. A run stops at the first state whose
@@ -158,10 +158,14 @@ export function gradientLoop(X: Matrix, y: number[], w: number[], b: number): { 
 
 const allFinite = (v: number[]) => v.every(Number.isFinite);
 
+const sumSquares = (v: number[]) => v.reduce((s, x) => s + x * x, 0);
+
 /**
- * Batch gradient descent from (w0, b0), keeping every state. Stops at the first state whose cost,
- * weights or bias are not finite (training/model.py stops on a non-finite cost; a weight that has
- * overflowed is stopped here too, so no infinity ever reaches a plot).
+ * Batch gradient descent from (w0, b0), keeping every state. Stops at the first state where a weight
+ * or the bias is not finite, the sum of squared weights overflows a 64-bit number, or the cost is not
+ * finite, exactly as training/model.py does. The parameter check is explicit: the logistic cost itself
+ * stays finite when a probability reaches 0 or 1 (only the log's argument is clipped), so without it
+ * only the lambda * sum(w^2) term would notice, and not at all when lambda is 0.
  */
 export function descend(X: Matrix, y: number[], w0: number[], b0: number, alpha: number, iters: number, lambda = 0): Run {
   const t0 = performance.now();
@@ -171,7 +175,7 @@ export function descend(X: Matrix, y: number[], w0: number[], b0: number, alpha:
   let b = b0;
   for (let i = 0; i <= iters; i++) {
     const j = cost(X, y, w, b, lambda);
-    if (!Number.isFinite(j) || !allFinite(w) || !Number.isFinite(b)) { diverged = i; break; }
+    if (!allFinite(w) || !Number.isFinite(b) || !Number.isFinite(sumSquares(w)) || !Number.isFinite(j)) { diverged = i; break; }
     const g = gradient(X, y, w, b, lambda);
     h.push({ w: w.slice(), b, j, gw: g.gw, gb: g.gb });
     w = w.map((v, k) => v - alpha * g.gw[k]);

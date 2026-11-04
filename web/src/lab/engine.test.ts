@@ -237,6 +237,19 @@ describe('divergence', () => {
     }
   });
 
+  it('stops on overflowing weights even when the penalty term is skipped (lambda 0, finite logistic cost)', () => {
+    const r = descend(Z5, y, [1e200, 0, 0, 0, 0], 0, 0.1, 5, 0);
+    expect(r.diverged).toBe(0);
+    expect(r.h.length).toBe(0);
+    // The data term of the cost (mean loss) is finite there, because only the log's argument is clipped.
+    // Only the 0 x infinity penalty term turns the full cost into NaN, so the parameter check is what stops the run.
+    const dataTerm = (w: number[]) => predictProba(Z5, w, 0).reduce((s, p, i) => s + logLoss(p, y[i]), 0) / y.length;
+    expect(Number.isFinite(dataTerm([1e200, 0, 0, 0, 0]))).toBe(true);
+    expect(Number.isFinite(cost(Z5, y, [1e150, 0, 0, 0, 0], 0, 0))).toBe(true);
+    const r2 = descend(Z5, y, [1e150, 0, 0, 0, 0], 0, 0.1, 5, 0);
+    expect(r2.diverged).toBeNull();
+  });
+
   it('a large but finite rate bounces without stopping, because the logistic cost is bounded', () => {
     const r = runOne(xs, y, 0, 0, 3, 60);
     expect(r.diverged).toBeNull();

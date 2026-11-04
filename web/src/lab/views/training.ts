@@ -74,7 +74,7 @@ export const learningRates: ViewFn = (_ctx, c) => {
   const cut = c.races.some((r) => r.run.h.some((q) => q.j > 1.5));
   if (cut) p.legend.push('Costs above 1.5 are cut off at the frame');
   const stopped = c.races.filter((r) => r.run.diverged !== null && c.it >= r.run.diverged);
-  if (stopped.length > 0) p.legend.push(`Stopped (cost not computable): ${stopped.map((r) => r.label).join(', ')}`);
+  if (stopped.length > 0) p.legend.push(`Stopped (the weights overflowed a 64-bit number): ${stopped.map((r) => r.label).join(', ')}`);
   return p;
 };
 

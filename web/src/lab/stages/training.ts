@@ -47,8 +47,8 @@ export const TRAINING: Stage[] = [
       return `Iteration ${c.it}:\nw = ${fixed(c.w, 3)} − ${sciText(c.alpha)} × (${fixed(g[0], 3)}) = ${fixed(c.w - c.alpha * g[0], 3)}\nb = ${fixed(c.b, 3)} − ${sciText(c.alpha)} × (${fixed(g[1], 3)}) = ${fixed(c.b - c.alpha * g[1], 3)}`;
     },
     code: [lab('compute_gradient_loop'), lab('descent')],
-    sk: 'from sklearn.linear_model import SGDClassifier\n\nmodel = SGDClassifier(\n    loss="log_loss",\n    penalty=None,\n    learning_rate="constant",\n    eta0=alpha,\n    max_iter=num_iters,\n    tol=None,\n).fit(X_train, y_train)',
-    skNote: 'SGDClassifier updates after each day (stochastic), and its max_iter counts passes over all the days. This project uses all days for every step (batch). The results are close, not identical.',
+    sk: 'from sklearn.linear_model import LogisticRegression\n\nmodel = LogisticRegression(penalty=None).fit(X_train, y_train)',
+    skNote: 'scikit-learn does not expose this loop. Its default solver, lbfgs, uses a different method with no learning rate to set, and it aims for the same lowest-cost weights that this descent approaches. If you try SGDClassifier, remember it is a different algorithm (one update per day, not per pass) whose curves will differ, and that its alpha argument means something else entirely (the strength of an extra term it adds), not this page’s α.',
     tries: [
       {
         label: 'A good run',
@@ -149,8 +149,8 @@ export const TRAINING: Stage[] = [
       return `${r.label} at iteration ${c.it}:\nJ = ${fixed(r.run.h[at].j, 4)}`;
     },
     code: [lab('lr_race')],
-    sk: 'from sklearn.linear_model import SGDClassifier\n\nSGDClassifier(\n    loss="log_loss",\n    learning_rate="constant",\n    eta0=alpha,\n)',
-    skNote: 'eta0 is scikit-learn’s name for α. As before, SGDClassifier updates one day at a time, so its curves are close to these but not the same.',
+    sk: '# scikit-learn has no equivalent of this race.\n# LogisticRegression (lbfgs) picks its own step sizes,\n# so there is no learning rate to set:\nfrom sklearn.linear_model import LogisticRegression\n\nLogisticRegression(penalty=None, solver="lbfgs")',
+    skNote: 'No direct equivalent: a learning-rate race is a way of studying plain gradient descent. SGDClassifier(learning_rate="constant", eta0=...) does have a constant step size called eta0, but it is a different algorithm (one update per day), so the same value is not the same step, its curves will differ, and its alpha argument means something else entirely (the strength of an extra term it adds), not this page’s α.',
     tries: [
       {
         label: 'Race four values',
@@ -166,7 +166,7 @@ export const TRAINING: Stage[] = [
       },
       {
         label: 'A rate beyond any number',
-        note: 'A rate of 1e300 overflows at once. The run stops where the cost cannot be computed and says so, instead of drawing numbers that mean nothing.',
+        note: 'A rate of 1e300 makes the weights overflow at once: their squares no longer fit in a 64-bit number, so the run stops there and says so, instead of drawing numbers that mean nothing. A large but ordinary rate only bounces.',
         set: { lrs: [0.1, 1e300], iters: '50' },
         run: true,
       },
@@ -202,7 +202,7 @@ export const TRAINING: Stage[] = [
       return `(${fixed(x, 1)} − ${fixed(ctx.d.muPm, 1)}) / ${fixed(ctx.d.sdPm, 1)} = ${fixed((x - ctx.d.muPm) / ctx.d.sdPm, 3)}`;
     },
     code: [lab('zscore')],
-    sk: 'from sklearn.preprocessing import StandardScaler\n\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_later = scaler.transform(X_later)',
+    sk: 'from sklearn.preprocessing import StandardScaler\n\nscaler = StandardScaler()\nX_train = scaler.fit_transform(X_train)\nX_new = scaler.transform(X_new)',
     skNote: 'StandardScaler is this same z-score, with the population standard deviation. Fit it on training days only, then reuse it.',
     tries: [
       {

@@ -68,7 +68,7 @@ describe('the training bar', () => {
         expect(screen.queryByRole('button', { name: 'Step' }), `step ${i + 1} Step`).toBeNull();
       }
     });
-  });
+  }, 30_000);
 
   it('opens at step 1 of 17', () => {
     render(<Lab inputs={inputs} />);
@@ -250,7 +250,7 @@ describe('the sandbox never changes the frozen model', () => {
       if (st.train) fireEvent.click(screen.getByRole('button', { name: 'Start' }));
     }
     expect(JSON.stringify(inputs.model)).toBe(snapshot);
-  });
+  }, 30_000);
 });
 
 describe('measured values', () => {

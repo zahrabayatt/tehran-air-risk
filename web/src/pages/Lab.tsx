@@ -119,7 +119,7 @@ export function Lab({ inputs }: { inputs: LabInputs }) {
       (r) => r.run.diverged !== null && c.it >= (r.run.diverged ?? 0),
     );
     if (stopped.length > 0) {
-      runStatus = `Stopped: ${stopped.map((r) => `${r.label} at iteration ${r.run.diverged}`).join('; ')}. A run stops where its cost can no longer be computed, and nothing past that point is drawn.`;
+      runStatus = `Stopped: ${stopped.map((r) => `${r.label} at iteration ${r.run.diverged}`).join('; ')}. The weights grew so large that their squares overflow a 64-bit number, so the run stops there and nothing past that point is drawn. (The logistic cost itself stays finite, which is why a large but ordinary α only bounces.)`;
     } else if (s.playing) runStatus = `Training: iteration ${c.it} of ${iters}.`;
     else if (!finished) runStatus = `Paused at iteration ${c.it} of ${iters}.`;
     else {

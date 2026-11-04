@@ -115,6 +115,7 @@ export const sandboxSplit: ViewFn = (ctx, c) => {
   p.legend = [
     `Sandbox illustration on the sample’s training days: the first ${r.train} train, the next ${r.held} stand in for unseen days`,
     'Not the live model’s result',
+    `The sandbox uses the live model’s λ = ${ctx.model.hyperparameters.lambda} on only ${r.train} rows, so λ/m is far stronger than in the live model (${ctx.model.rows.train.toLocaleString('en-US')} rows)`,
   ];
   return p;
 };

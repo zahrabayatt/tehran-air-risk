@@ -244,6 +244,18 @@ def test_matches_sklearn_logistic_regression(lambda_):
     assert compute_cost(X, y, w, b, lambda_) <= compute_cost(X, y, ref.coef_[0], ref.intercept_[0], lambda_) + 1e-10
 
 
+def test_descent_stops_on_overflowing_parameters_even_without_a_penalty():
+    X, y = make_data(m=60, n=2)
+    # the logistic cost stays finite here (log arguments are clipped), so only the explicit
+    # parameter check can stop the run
+    w, b, hist = gradient_descent(X, y, np.array([1e200, 0.0]), 0.0, 0.1, 5, 0.0)
+    assert hist == []
+    assert np.isfinite(w).all() and np.isfinite(b)
+    w, b, hist = gradient_descent(X, y, np.zeros(2), 0.0, 1e308, 50, 0.0)
+    assert len(hist) < 50 and all(np.isfinite(hist))
+    assert np.isfinite(w).all() and np.isfinite(b)
+
+
 # ---------------------------------------------------------------- lab markers
 
 def test_lab_markers_are_balanced_and_named():

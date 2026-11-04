@@ -10,9 +10,9 @@ import { tex, view } from './shared';
 const YEAR = 365.25;
 const angle = (day: number) => (2 * Math.PI * day) / YEAR;
 
-export const GENERALIZING: Stage[] = [
+export const BETTER_FEATURES: Stage[] = [
   {
-    part: 'Generalizing',
+    part: 'Better features',
     week: 'Course 1, Week 2. Feature engineering.',
     title: 'Feature engineering',
     text: 'A plain day number puts December far from January. Sine and cosine fix that. Move the day and see it on the circle.',

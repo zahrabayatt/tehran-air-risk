@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import {
-  CELL_IDS, GAPS_IN_WEST_LOG, MISSES_IN_WEST_LOG, NOW_FRESH, bothAbove, bothBelow, eastGap, empty, mixed, stale,
+  CELL_IDS, GAPS_IN_WEST_LOG, MISSES_IN_WEST_LOG, NOW_FRESH, NOW_TWO_DAYS, bothAbove, bothBelow, eastGap, empty, mixed, stale,
+  tomorrowGaps, twoDays,
 } from './forecastFixtures';
 
 const EXCLUDED = /\b(MSE|RMSE|L1|L2|Accuracy|Precision|Recall|F1|ROC-AUC|confusion matrix|hit rate)\b/i;
@@ -245,6 +246,187 @@ test.describe('forecast log', () => {
   });
 });
 
+const dayGroup = (page: Page) => page.getByRole('group', { name: 'Forecast day' });
+const dayButton = (page: Page, name: string) => dayGroup(page).getByRole('button', { name });
+const TODAY = 'Today · Wed 4 Nov';
+const TOMORROW = 'Tomorrow · Thu 5 Nov';
+const H1_TOMORROW = 'Thursday 5 November: likely below 35.4 μg/m³ in both West Tehran and East Tehran';
+const H1_TODAY = 'Wednesday 4 November: mixed, likely above 35.4 μg/m³ in West Tehran and below in East Tehran';
+
+test.describe('day switch', () => {
+  test('two forecast days give a labelled group of two pressed buttons, today first', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    await expect(dayGroup(page)).toBeVisible();
+    await expect(dayGroup(page).getByRole('button')).toHaveText([TODAY, TOMORROW]);
+    for (const b of await dayGroup(page).getByRole('button').all()) await expect(b).toHaveAttribute('aria-pressed', /true|false/);
+    await expect(page.getByRole('group', { name: 'Map layer' })).toBeVisible();
+  });
+
+  test('opens on tomorrow, the latest day: headline, updated time, tiles and card all describe it', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    await expect(dayButton(page, TOMORROW)).toHaveAttribute('aria-pressed', 'true');
+    await expect(dayButton(page, TODAY)).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(H1_TOMORROW);
+    await expect(page.getByTestId('city-sub')).toContainText('West Tehran 8%, East Tehran 20%');
+    await expect(page.getByTestId('forecast-meta')).toContainText('Forecast for Thursday 5 November');
+    await expect(page.getByTestId('updated')).toHaveText('Updated 4 November, 19:37 Tehran time');
+    await expect(page.getByTestId('updated').locator('time')).toHaveAttribute('datetime', '2026-11-04T16:07:00Z');
+    await expect(square(page, 'West Tehran')).toContainText('8%');
+    await expect(page.getByTestId('cell-card')).toContainText('8%');
+    await expect(page.getByTestId('day-ended')).toHaveCount(0);
+  });
+
+  test('says on the map which day it shows', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    await expect(page.getByTestId('map-day')).toContainText(TOMORROW);
+    await dayButton(page, TODAY).click();
+    await expect(page.getByTestId('map-day')).toContainText(TODAY);
+  });
+
+  test('switching to today changes the headline, the updated time, the tiles in both layers and the card', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    await dayButton(page, TODAY).click();
+    await expect(dayButton(page, TODAY)).toHaveAttribute('aria-pressed', 'true');
+    await expect(dayButton(page, TOMORROW)).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(H1_TODAY);
+    await expect(page.getByTestId('city-sub')).toContainText('West Tehran 82%, East Tehran 20%');
+    await expect(page.getByTestId('forecast-meta')).toContainText('Forecast for Wednesday 4 November');
+    await expect(page.getByTestId('updated')).toHaveText('Updated 3 November, 13:35 Tehran time');
+    await expect(square(page, 'West Tehran')).toContainText('82%');
+    await expect(square(page, 'West Tehran')).toContainText('Above');
+    await expect(square(page, 'North Tehran')).toContainText('5%');
+    const card = page.getByTestId('cell-card');
+    await expect(card).toContainText('82%');
+    await expect(card).toContainText('Likely above 35.4 μg/m³');
+    await expect(card).toContainText('41.3 μg/m³');
+    await layerButton(page, 'CAMS forecast').click();
+    await expect(square(page, 'West Tehran')).toContainText('41.3');
+    await expect(square(page, 'North Tehran')).toContainText('12.5');
+    await dayButton(page, TOMORROW).click();
+    await expect(square(page, 'West Tehran')).toContainText('18.2');
+    await expect(square(page, 'North Tehran')).toContainText('9.5');
+    await expect(card).toContainText('18.2 μg/m³');
+    await layerButton(page, 'Model chance').click();
+    await expect(square(page, 'West Tehran')).toContainText('8%');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(H1_TOMORROW);
+  });
+
+  test('is keyboard operable: Enter and Space press the buttons, Tab moves between them', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    await dayButton(page, TODAY).focus();
+    await page.keyboard.press('Enter');
+    await expect(dayButton(page, TODAY)).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Tab');
+    await expect(dayButton(page, TOMORROW)).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(dayButton(page, TOMORROW)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(H1_TOMORROW);
+  });
+
+  test('the place and the chosen square stay put across a day switch', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    await expect(placeSelect(page)).toHaveValue('azadi');
+    await dayButton(page, TODAY).click();
+    await expect(placeSelect(page)).toHaveValue('azadi');
+    await expect(square(page, 'West Tehran')).toHaveAttribute('aria-pressed', 'true');
+    await placeSelect(page).selectOption({ label: 'Shahr-e Rey' });
+    const place = await placeSelect(page).inputValue();
+    await dayButton(page, TOMORROW).click();
+    await expect(placeSelect(page)).toHaveValue(place);
+    await expect(square(page, 'East Tehran')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('cell-card')).toContainText('Shahr-e Rey is in the East Tehran square');
+    await square(page, 'Far East').click();
+    await dayButton(page, TODAY).click();
+    await expect(square(page, 'Far East')).toHaveAttribute('aria-pressed', 'true');
+    await expect(placeSelect(page)).toHaveValue('');
+    await expect(page.getByTestId('cell-card')).toContainText('Far East');
+    await expect(page.locator('[data-cell][aria-pressed="true"]')).toHaveCount(1);
+  });
+
+  test('the forecast log does not change with the day', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    const rows = await logRows(page).allInnerTexts();
+    expect(rows).toHaveLength(14);
+    await dayButton(page, TODAY).click();
+    expect(await logRows(page).allInnerTexts()).toEqual(rows);
+    await expect(logRows(page).first()).toContainText('Thu 5 Nov');
+  });
+
+  test('a day with only gaps is still offered and shows no-forecast squares, never a number', async ({ page }) => {
+    await open(page, tomorrowGaps(), NOW_TWO_DAYS);
+    await expect(dayGroup(page).getByRole('button')).toHaveText([TODAY, TOMORROW]);
+    await expect(dayButton(page, TOMORROW)).toHaveAttribute('aria-pressed', 'true');
+    await expect(squares(page)).toHaveCount(12);
+    for (let i = 0; i < 12; i++) {
+      await expect(squares(page).nth(i)).toContainText('No forecast');
+      await expect(squares(page).nth(i)).not.toContainText(/\d/);
+    }
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Thursday 5 November');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('no forecast for West Tehran or East Tehran');
+    await expect(page.getByTestId('cell-card')).toContainText('No forecast for this square');
+    await dayButton(page, TODAY).click();
+    await expect(square(page, 'West Tehran')).toContainText('91%');
+    await expect(page.getByTestId('cell-card')).toContainText('91%');
+  });
+
+  test('one forecast day: no switch, and the page is as before', async ({ page }) => {
+    await open(page, bothAbove(), NOW_FRESH);
+    await expect(dayGroup(page)).toHaveCount(0);
+    await expect(page.getByTestId('map-day')).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Map layer' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Wednesday 4 November: likely above 35.4 μg/m³ in both West Tehran and East Tehran',
+    );
+  });
+
+  test('a day that has ended is not offered: one day left means no switch and no ended note', async ({ page }) => {
+    await open(page, twoDays(), '2026-11-04T20:30:00Z'); // 00:00 on 5 November in Tehran
+    await expect(dayGroup(page)).toHaveCount(0);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(H1_TOMORROW);
+    await expect(page.getByTestId('day-ended')).toHaveCount(0);
+  });
+
+  test('one second before the day ends, both days are still offered', async ({ page }) => {
+    await open(page, twoDays(), '2026-11-04T20:29:59Z');
+    await expect(dayGroup(page).getByRole('button')).toHaveText([TODAY, TOMORROW]);
+  });
+
+  test('after midnight the next day is labelled Today', async ({ page }) => {
+    const body = twoDays();
+    // The 4th has ended; the 5th is today and a 6th is added, so there are two days again.
+    body.entries.push(...body.entries.filter((e) => e.target_date === '2026-11-05').map((e) => ({ ...e, target_date: '2026-11-06' })));
+    await open(page, body, '2026-11-04T21:00:00Z');
+    await expect(dayGroup(page).getByRole('button')).toHaveText(['Today · Thu 5 Nov', 'Tomorrow · Fri 6 Nov']);
+  });
+
+  test('when every day has ended, the last forecast is shown with the ended note and no switch', async ({ page }) => {
+    await open(page, twoDays(), '2026-11-05T21:00:00Z'); // 00:30 on 6 November in Tehran, 29 hours after the run
+    await expect(dayGroup(page)).toHaveCount(0);
+    await expect(squares(page)).toHaveCount(12);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(H1_TOMORROW);
+    await expect(page.getByTestId('day-ended')).toContainText('Thursday 5 November has ended in Tehran');
+  });
+
+  test('a stale file hides the map and the switch, as before', async ({ page }) => {
+    await open(page, twoDays(), '2026-11-07T00:00:00Z');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('No current forecast');
+    await expect(dayGroup(page)).toHaveCount(0);
+  });
+
+  test('keeps the copy rules on both days', async ({ page }) => {
+    await open(page, twoDays(), NOW_TWO_DAYS);
+    for (const day of [TOMORROW, TODAY]) {
+      await dayButton(page, day).click();
+      const text = await page.locator('main').innerText();
+      expect(text).not.toMatch(EXCLUDED);
+      expect(text).not.toMatch(/unhealthy|EPA/i);
+      expect(text).toContain('above 35.4 μg/m³');
+      expect(text).toContain('about 44 by 36 km');
+      expect(text).toMatch(/model estimate/i);
+    }
+  });
+});
+
 test.describe('delayed runs and finished days', () => {
   test('a day that has ended in Tehran, with a forecast not yet stale, says so', async ({ page }) => {
     await open(page, bothAbove(), '2026-11-04T21:00:00Z'); // 00:30 on 5 November in Tehran
@@ -388,6 +570,44 @@ for (const theme of ['light', 'asphalt'] as const) {
       expect(map!.x).toBeGreaterThanOrEqual(0);
       expect(map!.x + map!.width).toBeLessThanOrEqual(390);
       expect(await serious(page)).toEqual([]);
+    });
+
+    test('no serious or critical accessibility violations: the day switch on both days, 1280px', async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await open(page, twoDays(), NOW_TWO_DAYS);
+      if (theme === 'asphalt') {
+        await page.getByRole('button', { name: 'Asphalt' }).click();
+        await expect(page.locator('.app')).toHaveClass(/dark/);
+      }
+      await expect(dayGroup(page)).toBeVisible();
+      expect(await serious(page)).toEqual([]);
+      await dayButton(page, TODAY).click();
+      await layerButton(page, 'CAMS forecast').click();
+      expect(await serious(page)).toEqual([]);
+    });
+
+    test('phone width: the day switch fits, nothing scrolls sideways, no serious violations', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await open(page, twoDays(), NOW_TWO_DAYS);
+      if (theme === 'asphalt') {
+        await page.getByRole('button', { name: 'Asphalt' }).click();
+        await expect(page.locator('.app')).toHaveClass(/dark/);
+      }
+      await expect(dayGroup(page)).toBeVisible();
+      for (const name of [TODAY, TOMORROW]) {
+        const box = await dayButton(page, name).boundingBox();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
+      const g = await dayGroup(page).boundingBox();
+      expect(g!.x + g!.width).toBeLessThanOrEqual(390);
+      const fits = () =>
+        page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+      expect(await fits()).toBe(true);
+      expect(await serious(page)).toEqual([]);
+      await dayButton(page, TODAY).click();
+      expect(await fits()).toBe(true);
     });
 
     test('phone width: the long mixed headline and the log do not scroll the page sideways', async ({ page }) => {

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { NOW_FRESH, empty, mixed, stale } from './forecastFixtures';
+import { NOW_FRESH, NOW_TWO_DAYS, empty, mixed, stale, twoDays } from './forecastFixtures';
 
 // Every route, in both themes, at 1280 and 390 wide: no serious or critical axe violation, and no sideways
 // page scroll at 390. The Forecast page is opened here on a fixture file with a fixed clock, so it shows
@@ -17,16 +17,25 @@ interface Route {
   ready?: (page: Page) => Promise<void>;
 }
 /** Serve a fixture (or a failure) as predictions.json and fix the clock, so the Forecast page shows the same state on any day. */
-const forecastPage = (body: unknown | 'error') => async (page: Page) => {
+const forecastPage = (body: unknown | 'error', now = NOW_FRESH) => async (page: Page) => {
   await page.route('**/data/predictions.json', (route) =>
     body === 'error' ? route.fulfill({ status: 404, body: 'nope' }) : route.fulfill({ json: body }),
   );
   await page.addInitScript((t) => {
     window.__TAR_NOW__ = t;
-  }, NOW_FRESH);
+  }, now);
 };
 const ROUTES: Route[] = [
   { name: 'Forecast', hash: '#/', heading: /^Wednesday 4 November: mixed/, prepare: forecastPage(mixed()) },
+  {
+    name: 'Forecast, two days',
+    hash: '#/',
+    heading: /^Thursday 5 November: likely below/,
+    prepare: forecastPage(twoDays(), NOW_TWO_DAYS),
+    ready: async (page) => {
+      await expect(page.getByRole('group', { name: 'Forecast day' })).toBeVisible();
+    },
+  },
   { name: 'Model Lab', hash: '#/lab', heading: 'Model Lab' },
   { name: 'Data', hash: '#/data', heading: 'Modeled air, not measured air' },
   { name: 'Forecast, stale', hash: '#/', heading: 'No current forecast', prepare: forecastPage(stale()) },
@@ -55,7 +64,7 @@ const LAB_STEPS = [
   'Held-out result',
   'Daily forecast',
 ];
-const LAB: Route = ROUTES[1];
+const LAB: Route = ROUTES.find((r) => r.name === 'Model Lab') as Route;
 const WIDTHS = [1280, 390];
 const THEMES = ['light', 'asphalt'] as const;
 

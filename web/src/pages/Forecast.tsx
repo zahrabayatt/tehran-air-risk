@@ -8,7 +8,7 @@ import { GITHUB_URL } from '../config';
 import { placeCell } from '../forecast/cells';
 import { loadForecastData, type ForecastData } from '../forecast/data';
 import {
-  THRESHOLD_TEXT, cityHeadline, isStale, runDateLabel, targetDateLabel, updatedLabel, type CellForecast,
+  THRESHOLD_TEXT, cityHeadline, dayHasEnded, isStale, runDateLabel, targetDateLabel, updatedLabel, type CellForecast,
 } from '../forecast/headline';
 import { forecastLog } from '../forecast/log';
 import { resolveNow } from '../forecast/now';
@@ -191,6 +191,12 @@ function Forecast({ data, now }: { data: ForecastData; now: Date }) {
               <p className="lede" data-testid="city-sub">
                 {headline.sub}
               </p>
+              {dayHasEnded(target, now) ? (
+                <p className="small" data-testid="day-ended">
+                  {dateLabel} has ended in Tehran. This is the last forecast issued for it; the next one appears after the next
+                  scheduled run.
+                </p>
+              ) : null}
             </div>
             <div role="group" aria-label="Map layer" className="layers">
               {(['model', 'cams'] as const).map((l) => (

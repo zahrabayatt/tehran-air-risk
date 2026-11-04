@@ -39,6 +39,8 @@ const PARTS: Array<[number, string]> = [
 ];
 
 const EXCLUDED = /\b(MSE|RMSE|accuracy|precision|recall|F1|ROC|AUC|confusion matrix|threshold analysis|mean squared|root mean|L1 loss|L2 loss)\b/i;
+/** The label is "above 35.4 μg/m³", never an air-quality category such as "unhealthy". */
+const CATEGORY = /\b(unhealthy|sensitive groups)\b/i;
 /** A word a step may use only from the step that introduces it (1-based). */
 const INTRODUCED: Array<[RegExp, number]> = [
   [/\b(cost|loss)\b/i, 7],
@@ -166,6 +168,26 @@ describe('excluded measures', () => {
   });
 });
 
+describe('no air-quality category', () => {
+  it('is named in the copy, the math or the code of any step', () => {
+    STAGES.forEach((_, i) => expect(words(i), TITLES[i]).not.toMatch(CATEGORY));
+  });
+  it('or in the live text of any view', () => {
+    STAGES.forEach((st, i) => {
+      st.views.forEach((v, vi) => {
+        const s = reducer({ ...INITIAL }, { type: 'goto', stage: i, stages: STAGES });
+        const c = computeCur(ctx, st, { ...s, view: vi });
+        const spec = v.fn(ctx, c);
+        const text = [
+          ...spec.legend, spec.xLabel, spec.yLabel, ...spec.texts.map((q) => q.t),
+          ...st.stats(ctx, c).flatMap((r) => [r.k, r.v]), st.worked(ctx, c),
+        ].join('\n');
+        expect(text, `${TITLES[i]} / ${v.label}`).not.toMatch(CATEGORY);
+      });
+    });
+  });
+});
+
 describe('equations', () => {
   it('every symbol and equation is valid TeX that KaTeX renders', () => {
     for (const st of STAGES) {
@@ -244,5 +266,18 @@ describe('code', () => {
   it('squeezes runs of blank lines and drops blank edges', () => {
     const rows = codeRows({ name: 'x', file: 'training/x.py', startLine: 1, lines: ['', 'a', '', '', 'b', ''] }, { a: 'first' });
     expect(rows).toEqual([{ code: 'a', note: 'first' }, { code: '', note: '' }, { code: 'b', note: '' }]);
+  });
+});
+
+describe('Decision boundary', () => {
+  it('describes the season axis in plain words, since sin and cos are taught at Feature engineering', () => {
+    const i = TITLES.indexOf('Decision boundary');
+    expect(words(i)).not.toMatch(/season_(sin|cos)|sin\b|cos\b/i);
+    const st = STAGES[i];
+    st.views.forEach((v, vi) => {
+      const s = reducer({ ...INITIAL }, { type: 'goto', stage: i, stages: STAGES });
+      const spec = v.fn(ctx, computeCur(ctx, st, { ...s, view: vi }));
+      expect([...spec.legend, spec.xLabel, spec.yLabel].join('\n'), v.label).not.toMatch(/season_(sin|cos)/i);
+    });
   });
 });

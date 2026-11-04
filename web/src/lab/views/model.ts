@@ -55,7 +55,7 @@ function boundaryView(second: 'wind' | 'season'): ViewFn {
     p.points = ctx.d.x.map((x, i) => dayDot(f, x, col[i], ctx.d.y[i]));
     p.lines = [ln(boundaryLine(f, c.v1, c.v2, c.vb))];
     p.xLabel = XL;
-    p.yLabel = second === 'wind' ? 'Wind speed so far today (tens of km/h)' : 'season_cos, near +1 in winter and −1 in summer';
+    p.yLabel = second === 'wind' ? 'Wind speed so far today (tens of km/h)' : 'Time of year: +1 at New Year, −1 at the start of July';
     p.legend = ['Line: where the probability equals 0.5', 'The side where w₁x₁ + w₂x₂ + b is positive is predicted y = 1', ...CLASS_LEGEND];
     return p;
   };

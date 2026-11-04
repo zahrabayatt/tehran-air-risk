@@ -1,4 +1,5 @@
 import { emptyPlot } from '../../components/Plot';
+import { DAILY_RUN_TEHRAN, DAILY_RUN_UTC } from '../../config';
 import { sandbox } from '../context';
 import type { LabCtx } from '../context';
 import { fixed, fmt, niceTop } from '../format';
@@ -97,6 +98,7 @@ export const costByLambda: ViewFn = (ctx) => {
     'Live model: the features and data it was really trained on',
     'Dashed: training cost',
     'Solid: selection cost, on the six months after the training days. λ was chosen here, before the held-out year was looked at.',
+    `The selection days are one warm half-year with only ${ctx.selection.positives} positive days out of ${ctx.selection.rows.toLocaleString('en-US')} days, which is little to choose λ with.`,
     'Marker: the λ the live model uses',
   ];
   return p;
@@ -131,7 +133,7 @@ export const pipeline: ViewFn = () => {
     p.texts.push({ x: x + 48, y: 195, t, anchor: 'middle', size: 13 });
     if (i < 5) p.lines.push(ln(`M${x + 96} 190 L${x + 110} 190`, { stroke: INK, width: 1.5 }));
   });
-  p.texts.push({ x: 360, y: 130, t: 'Every day at 10:00 UTC (13:30 Tehran)', anchor: 'middle', size: 15 });
+  p.texts.push({ x: 360, y: 130, t: `Every day at ${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran)`, anchor: 'middle', size: 15 });
   p.legend = ['A failed fetch records a gap and never invents a value', 'The model is frozen: the job applies it and never retrains it'];
   return p;
 };

@@ -1,10 +1,12 @@
 """Features at the 12:00 Tehran cutoff, the time split and the scaler, built so nothing late leaks in.
 
 Each day D at 12:00 Tehran time (08:30 UTC; Tehran is UTC+03:30) we predict whether the
-Tehran-day mean PM2.5 of D+1 exceeds the threshold. Hourly stamps mean "the hour starting
-then", so the stamps usable at the cutoff are those up to 08:00 UTC. The window is the 12
-stamps from 21:00 UTC on D-1 through 08:00 UTC on D (00:30-11:30 Tehran time on D). Nothing stamped 09:00 UTC on D or later can influence a row, and the CAMS forecast for
-tomorrow is never an input. A row needs all 12 hours of all 10 inputs to be non-null; otherwise
+Tehran-day mean PM2.5 of D+1 exceeds the threshold. Open-Meteo's pollutant concentrations and
+temperature are instantaneous values at the stamp; precipitation is the sum of the preceding
+hour. Either way, the stamps usable at the cutoff are those up to 08:00 UTC (08:30 UTC is the
+cutoff). The window is the 12 stamps from 21:00 UTC on D-1 through 08:00 UTC on D (00:30-11:30
+Tehran time on D). Nothing stamped 09:00 UTC on D or later can influence a row, and the CAMS
+forecast for tomorrow is never an input. A row needs all 12 hours of all 10 inputs to be non-null; otherwise
 there is no row. Nothing is ever imputed.
 
 Iran kept +04:30 summer time until 2022-09-21. On those days the 08:00 UTC stamp is 12:30 local

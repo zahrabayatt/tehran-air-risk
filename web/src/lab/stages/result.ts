@@ -4,6 +4,7 @@ import { count, fixed } from '../format';
 import { lab } from '../snippets';
 import type { Stage } from '../types';
 import { VIEWS } from '../views';
+import { DAILY_RUN_TEHRAN, DAILY_RUN_UTC } from '../../config';
 import { baselineCosts, lambdaRows, verdict } from '../views/result';
 import { FEATURE_LABELS } from '../views/result';
 import { runTime, tex, view } from './shared';
@@ -103,7 +104,7 @@ export const RESULT: Stage[] = [
     text: 'One scheduled job applies the frozen model to the day’s inputs and publishes the forecast. It never retrains, and CAMS’s own forecast of tomorrow is never an input.',
     views: [view('Pipeline', VIEWS.pipeline), view('Frozen model', VIEWS.frozenWeights)],
     stats: (ctx) => [
-      { k: 'Scheduled', v: '10:00 UTC (13:30 Tehran)' },
+      { k: 'Scheduled', v: `${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran)` },
       { k: 'Inputs up to', v: ctx.model.cutoff },
       { k: 'Last run', v: runTime(ctx.predictions.lastIssuedAt) },
       { k: 'Forecasts logged', v: count(ctx.predictions.logged) },
@@ -121,7 +122,7 @@ export const RESULT: Stage[] = [
       },
       {
         tex: tex`f_{\text{today}} = g\!\left( \vec{w}_{\text{frozen}} \cdot \vec{z} + b_{\text{frozen}} \right)`,
-        why: 'Each day uses the same parameters, so the results stay comparable from day to day. Inputs stop at 12:00 Tehran time; the job runs at 13:30.',
+        why: `Each day uses the same parameters, so the results stay comparable from day to day. Inputs stop at 12:00 Tehran time; the job runs at ${DAILY_RUN_TEHRAN} Tehran time.`,
       },
     ],
     worked: (ctx) => {

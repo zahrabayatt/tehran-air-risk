@@ -81,7 +81,7 @@ export const MODEL: Stage[] = [
       { tex: tex`z = w \cdot x + b`, why: 'The same linear formula as before. Now it is only a score, not the answer.' },
       {
         tex: tex`f_{w,b}(x) = g(w \cdot x + b) = \frac{1}{1 + e^{-(w \cdot x + b)}}`,
-        why: 'The output reads as P(y = 1 | x; w, b), the chance of an unhealthy day given today’s inputs.',
+        why: 'The output reads as P(y = 1 | x; w, b), the chance of a day above 35.4 μg/m³ given today’s inputs.',
       },
       {
         tex: tex`\hat{y} = \begin{cases} 1 & f_{w,b}(x) \ge 0.5 \\ 0 & \text{otherwise} \end{cases}`,
@@ -114,7 +114,7 @@ export const MODEL: Stage[] = [
       { k: 'b', v: fixed(c.vb, 3) },
     ],
     notation: [
-      { s: tex`x_1,\; x_2`, m: 'PM2.5 so far today (tens of μg/m³), and a second feature: wind speed or season_cos', c: 'X[:, 0], X[:, 1]' },
+      { s: tex`x_1,\; x_2`, m: 'PM2.5 so far today (tens of μg/m³), and a second feature: wind speed, or the time of year (+1 at New Year, −1 at the start of July)', c: 'X[:, 0], X[:, 1]' },
       { s: tex`w_1,\; w_2`, m: 'One weight for each', c: 'w[0], w[1]' },
     ],
     math: [
@@ -149,7 +149,7 @@ export const MODEL: Stage[] = [
       },
       {
         label: 'Include season',
-        note: 'Fitted to the sample, the season weight is large and the line tilts steeply: in winter (season_cos near +1) a low PM2.5 already means y = 1, in summer only a very high one does.',
+        note: 'Fitted to the sample, the season weight is large and the line tilts steeply: in winter (time of year near +1) a low PM2.5 already means y = 1, in summer only a very high one does.',
         set: (ctx) => ({ v1: r05(ctx.pair.season.w[0]), v2: r05(ctx.pair.season.w[1]), vb: r05(ctx.pair.season.b), view: 1 }),
       },
     ],

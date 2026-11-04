@@ -50,9 +50,16 @@ export interface LabModel {
   vectorization: { elements: number; loop_ms: number; numpy_ms: number };
 }
 
+/** The selection split's size and positive days, from profile.json. */
+export interface SelectionCounts {
+  rows: number;
+  positives: number;
+}
+
 export interface LabInputs {
   sample: Sample;
   model: LabModel;
+  selection: SelectionCounts;
   predictions: PredictionEntry[];
 }
 
@@ -171,6 +178,8 @@ export interface LabCtx {
   /** A frozen copy of the model: the Lab can read it and cannot change it. */
   model: LabModel;
   predictions: PredictionSummary;
+  /** Days in the selection split and how many were above the threshold (profile.json). */
+  selection: SelectionCounts;
   /** Share of training days above the threshold, by calendar month: West Tehran, and all 12 squares pooled. */
   months: TrainMonth[];
   /** Best one-feature fit on x (PM2.5 in tens), its cost, and where it crosses 0.5. */
@@ -217,6 +226,7 @@ export function makeCtx(inputs: LabInputs): LabCtx {
     d,
     model,
     predictions: summarizePredictions(inputs.predictions),
+    selection: { ...inputs.selection },
     months: inputs.sample.train_months.map((m) => ({ ...m })),
     star: { w: w1, b: star1.b, j: star1.j, x0: -star1.b / w1 },
     pair: {

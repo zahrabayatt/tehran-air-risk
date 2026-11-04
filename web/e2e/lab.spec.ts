@@ -23,6 +23,8 @@ const PARTS = ['The problem', 'The model', 'The cost', 'Training', 'Better featu
 /** Steps that show the training bar. Gradient descent is the first. */
 const TRAINING = [10, 12, 13];
 const EXCLUDED = /\b(MSE|RMSE|accuracy|precision|recall|F1|ROC|AUC|confusion matrix|threshold analysis|mean squared|root mean|L1 loss|L2 loss)\b/i;
+/** The label is "above 35.4 μg/m³", never an air-quality category. */
+const CATEGORY = /\b(unhealthy|sensitive groups)\b/i;
 /** A word a step may use only from the step that introduces it. */
 const INTRODUCED: Array<[RegExp, number]> = [
   [/\b(cost|loss)\b/i, 7],
@@ -508,7 +510,7 @@ test('the daily forecast step reads the forecast log and explains the frozen mod
   const last = new Date(Math.max(...log.entries.map((e: { issued_at: string }) => Date.parse(e.issued_at)))).toISOString();
   await expect(stat(page, 'Last run')).toContainText(`${last.slice(0, 10)} ${last.slice(11, 16)} UTC`);
   await expect(stat(page, 'Inputs up to')).toHaveText(model.cutoff);
-  await expect(stat(page, 'Scheduled')).toContainText('10:00 UTC');
+  await expect(stat(page, 'Scheduled')).toHaveText('13:30 UTC (17:00 Tehran)');
   await expect(page.getByTestId('worked')).toContainText(`Frozen model v${model.version}`);
   await expect(page.getByTestId('worked')).toContainText(model.weights[0].toFixed(3));
   const text = await pageText(page);
@@ -522,7 +524,9 @@ test('no excluded measure appears on any step', async ({ page }) => {
     await goStep(page, n);
     for (const tab of ['The math', 'The code', 'scikit-learn']) {
       await page.getByRole('group', { name: 'Explanation section' }).getByRole('button', { name: tab }).click();
-      expect(await page.locator('main').innerText(), `step ${n} ${tab}`).not.toMatch(EXCLUDED);
+      const text = await page.locator('main').innerText();
+      expect(text, `step ${n} ${tab}`).not.toMatch(EXCLUDED);
+      expect(text, `step ${n} ${tab}`).not.toMatch(CATEGORY);
     }
   }
 });

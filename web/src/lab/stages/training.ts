@@ -175,7 +175,7 @@ export const TRAINING: Stage[] = [
   {
     week: 'Course 1, Week 2. Feature scaling.',
     title: 'Feature scaling',
-    text: 'Pollutants and weather have very different ranges. Train with and without scaling.',
+    text: 'Raw PM2.5 runs into the tens of μg/m³. This demo trains on PM2.5 alone, once raw and once scaled, with the same learning rate.',
     train: 'scale',
     alpha: { min: -4, max: 1, init: -1 },
     defaults: { alphaExp: -1, iters: '300' },

@@ -102,6 +102,13 @@ export function runDateLabel(issuedAt: string): string {
   return updatedLabel(issuedAt).split(',')[0];
 }
 
+/** True when Tehran's calendar day `date` (YYYY-MM-DD) is already over at `now`: 00:00 Tehran is 20:30 UTC the evening before. */
+export function dayHasEnded(date: string, now: Date): boolean {
+  if (!ymd(date)) return false;
+  const nextMidnight = Date.parse(`${date}T00:00:00+03:30`) + 24 * 3600_000;
+  return Number.isFinite(nextMidnight) && now.getTime() >= nextMidnight;
+}
+
 /** True when the latest run is more than 48 hours before `now`, or its time cannot be read. */
 export function isStale(now: Date, latestIssuedAt: string): boolean {
   const t = Date.parse(latestIssuedAt);

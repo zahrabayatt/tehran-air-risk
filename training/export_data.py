@@ -37,7 +37,7 @@ SOURCES = [
     {"use": "Weather: " + ", ".join(WEATHER) + " (hourly, up to the cutoff)",
      "source": "Open-Meteo Historical Forecast API, ECMWF IFS",
      "licence": "CC-BY 4.0",
-     "attribution": "Open-Meteo"},
+     "attribution": "Open-Meteo and ECMWF (IFS open data, CC-BY 4.0)"},
 ]
 
 

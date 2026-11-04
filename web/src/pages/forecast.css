@@ -219,6 +219,7 @@
 .log thead th { border-top: 0; color: var(--mut); font-size: 13px; font-weight: 500; }
 .log tbody th { font-weight: 500; white-space: nowrap; }
 .log__pct { font-weight: 600; }
+.log__late { color: var(--mut); font-size: 0.85em; }
 .log__result { font-weight: 600; }
 .log__row--match .log__result { color: var(--ac); }
 .log__row--miss { background: var(--warns); }

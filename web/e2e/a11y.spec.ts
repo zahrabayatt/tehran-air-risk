@@ -1,10 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { NOW_FRESH, mixed } from './forecastFixtures';
+import { NOW_FRESH, empty, mixed, stale } from './forecastFixtures';
 
 // Every route, in both themes, at 1280 and 390 wide: no serious or critical axe violation, and no sideways
 // page scroll at 390. The Forecast page is opened here on a fixture file with a fixed clock, so it shows
-// the same answer on any day; forecast.spec.ts checks its other states (a gap, stale, empty, the CAMS layer).
+// the same answer on any day; its stale, empty and error states are checked here too, and forecast.spec.ts checks
+// the other states (a gap, the CAMS layer).
 // The Model Lab is checked here at its opening step, and step by step in the block below.
 interface Route {
   name: string;
@@ -12,21 +13,33 @@ interface Route {
   heading: string | RegExp;
   /** Runs before the page loads: serve a fixture file and fix the clock. */
   prepare?: (page: Page) => Promise<void>;
+  /** Extra wait for a state whose heading is the same as while loading. */
+  ready?: (page: Page) => Promise<void>;
 }
+/** Serve a fixture (or a failure) as predictions.json and fix the clock, so the Forecast page shows the same state on any day. */
+const forecastPage = (body: unknown | 'error') => async (page: Page) => {
+  await page.route('**/data/predictions.json', (route) =>
+    body === 'error' ? route.fulfill({ status: 404, body: 'nope' }) : route.fulfill({ json: body }),
+  );
+  await page.addInitScript((t) => {
+    window.__TAR_NOW__ = t;
+  }, NOW_FRESH);
+};
 const ROUTES: Route[] = [
-  {
-    name: 'Forecast',
-    hash: '#/',
-    heading: /^Wednesday 4 November: mixed/,
-    prepare: async (page) => {
-      await page.route('**/data/predictions.json', (route) => route.fulfill({ json: mixed() }));
-      await page.addInitScript((t) => {
-        window.__TAR_NOW__ = t;
-      }, NOW_FRESH);
-    },
-  },
+  { name: 'Forecast', hash: '#/', heading: /^Wednesday 4 November: mixed/, prepare: forecastPage(mixed()) },
   { name: 'Model Lab', hash: '#/lab', heading: 'Model Lab' },
   { name: 'Data', hash: '#/data', heading: 'Modeled air, not measured air' },
+  { name: 'Forecast, stale', hash: '#/', heading: 'No current forecast', prepare: forecastPage(stale()) },
+  { name: 'Forecast, empty', hash: '#/', heading: 'No forecasts yet', prepare: forecastPage(empty()) },
+  {
+    name: 'Forecast, error',
+    hash: '#/',
+    heading: 'Forecast',
+    prepare: forecastPage('error'),
+    ready: async (page) => {
+      await expect(page.getByRole('alert')).toContainText('The forecast did not load');
+    },
+  },
 ];
 /** Lab steps that between them show every kind of control, plot, tab and card. */
 const LAB_STEPS = [
@@ -55,6 +68,7 @@ async function open(page: Page, route: Route, theme: (typeof THEMES)[number]) {
     await expect(page.locator('.app')).toHaveClass(/dark/);
   }
   await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+  await route.ready?.(page);
   await page.waitForLoadState('networkidle');
 }
 

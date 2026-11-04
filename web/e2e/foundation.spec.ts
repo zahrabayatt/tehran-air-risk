@@ -53,7 +53,9 @@ test('footer names the author, credits the sources and hides empty links', async
   await page.goto('#/');
   const footer = page.getByRole('contentinfo');
   await expect(footer).toContainText('Built by Zahra Bayat.');
-  await expect(footer).toContainText('CAMS via Open-Meteo, CC-BY 4.0');
+  await expect(footer).toContainText('CAMS via Open-Meteo');
+  await expect(footer).toContainText('ECMWF via Open-Meteo');
+  await expect(footer).toContainText('Both CC-BY 4.0');
   await expect(footer).toContainText('OpenStreetMap contributors, ODbL');
   await expect(footer.getByRole('link')).toHaveCount(0);
 });

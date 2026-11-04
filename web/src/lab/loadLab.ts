@@ -1,4 +1,4 @@
-import type { LabInputs, LabModel, PredictionEntry } from './context';
+import type { LabInputs, LabModel, PredictionEntry, SelectionCounts } from './context';
 import type { Sample } from './engine';
 
 async function getJson(url: string): Promise<unknown> {
@@ -45,15 +45,23 @@ function entriesOf(raw: unknown): PredictionEntry[] {
   );
 }
 
+/** The selection split's counts, as profile.json records them. */
+function selectionOf(raw: unknown): SelectionCounts {
+  const s = isObject(raw) && isObject(raw.splits) && isObject(raw.splits.selection) ? raw.splits.selection : null;
+  if (!s || !finite(s.rows) || !finite(s.positives)) throw new Error('profile.json is malformed: splits.selection.');
+  return { rows: s.rows, positives: s.positives };
+}
+
 /** Fetch everything the Lab needs: the sample, the frozen model and the forecast log. */
 export async function loadLab(base: string): Promise<LabInputs> {
   const url = (f: string) => `${base}data/${f}`;
-  const [model, sample, predictions] = await Promise.all([
+  const [model, sample, predictions, profile] = await Promise.all([
     getJson(url('model.json')),
     getJson(url('sample.json')),
     getJson(url('predictions.json')),
+    getJson(url('profile.json')),
   ]);
   assertSample(sample);
   assertModel(model);
-  return { sample, model, predictions: entriesOf(predictions) };
+  return { sample, model, selection: selectionOf(profile), predictions: entriesOf(predictions) };
 }

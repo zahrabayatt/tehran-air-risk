@@ -34,7 +34,7 @@ export function Layout() {
       <footer className="site-footer">
         <div className="site-footer__inner">
           <span>
-            Built by {AUTHOR}. Air data: CAMS via Open-Meteo, CC-BY 4.0. City outline: © OpenStreetMap contributors, ODbL.
+            Built by {AUTHOR}. Air data: CAMS via Open-Meteo. Weather: ECMWF via Open-Meteo. Both CC-BY 4.0. City outline: © OpenStreetMap contributors, ODbL.
             {GITHUB_URL ? (
               <>
                 {' '}

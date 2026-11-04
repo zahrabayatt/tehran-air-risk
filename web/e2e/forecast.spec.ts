@@ -245,6 +245,29 @@ test.describe('forecast log', () => {
   });
 });
 
+test.describe('delayed runs and finished days', () => {
+  test('a day that has ended in Tehran, with a forecast not yet stale, says so', async ({ page }) => {
+    await open(page, bothAbove(), '2026-11-04T21:00:00Z'); // 00:30 on 5 November in Tehran
+    await expect(squares(page)).toHaveCount(12);
+    await expect(page.getByTestId('day-ended')).toContainText('Wednesday 4 November has ended in Tehran');
+  });
+
+  test('no such line while the target day is still to come or under way', async ({ page }) => {
+    await open(page, bothAbove(), NOW_FRESH);
+    await expect(page.getByTestId('day-ended')).toHaveCount(0);
+  });
+
+  test('the log title does not promise every forecast was saved before its day, and marks one saved after it began', async ({ page }) => {
+    const body = bothAbove();
+    const west = body.entries.find((e) => e.cell_id === 'west-tehran' && e.target_date === '2026-11-03')!;
+    west.issued_at = '2026-11-03T09:00:00Z'; // a manual run during the day itself
+    await open(page, body);
+    await expect(page.getByTestId('log-title')).toContainText('Usually saved before the day begins');
+    await expect(page.getByTestId('issued-late')).toHaveCount(1);
+    await expect(logRows(page).filter({ hasText: 'Tue 3 Nov' })).toContainText('saved after the day began');
+  });
+});
+
 test.describe('stale and empty', () => {
   test('a forecast older than 48 hours is replaced by a message, the map is hidden, the log stays', async ({ page }) => {
     await open(page, stale());

@@ -76,3 +76,24 @@ describe('forecastLog', () => {
     expect(rows[0].verdict).toBe('miss');
   });
 });
+
+describe('issued after the day began (M4)', () => {
+  it('marks a row whose issued_at is at or after 00:00 Tehran (20:30 UTC the evening before) of its target day', () => {
+    const rows = forecastLog(
+      [
+        entry('2026-11-04', 'west-tehran', { issued_at: '2026-11-03T13:30:55Z' }),          // the usual run
+        entry('2026-11-05', 'west-tehran', { issued_at: '2026-11-04T20:29:59Z' }),          // one second before the day began
+        entry('2026-11-06', 'west-tehran', { issued_at: '2026-11-05T20:30:00Z' }),          // exactly at Tehran midnight
+        entry('2026-11-07', 'west-tehran', { issued_at: '2026-11-07T09:00:00Z' }),          // a manual run on the day itself
+      ],
+      'west-tehran',
+    );
+    expect(rows.map((r) => [r.date, r.issuedLate])).toEqual([
+      ['2026-11-07', true], ['2026-11-06', true], ['2026-11-05', false], ['2026-11-04', false],
+    ]);
+  });
+  it('is false for a day with no forecast', () => {
+    const rows = forecastLog([entry(day(1), 'west-tehran', { gap: true, probability: null, predicted: null })], 'west-tehran');
+    expect(rows[0].issuedLate).toBe(false);
+  });
+});

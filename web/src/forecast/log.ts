@@ -13,7 +13,12 @@ export interface LogRow {
   outcome: 0 | 1 | null;
   /** `none` is a gap or a date with no entry: not a hit, not a miss. */
   verdict: Verdict;
+  /** The forecast was saved at or after 00:00 Tehran of its target day (a delayed or manual run). */
+  issuedLate: boolean;
 }
+
+/** 00:00 Tehran of a YYYY-MM-DD date (20:30 UTC the evening before), as a time in ms. */
+const tehranDayStart = (date: string) => Date.parse(`${date}T00:00:00+03:30`);
 
 /**
  * The last 14 target dates (newest first) for one square: the prediction beside the later outcome.
@@ -31,10 +36,11 @@ export function forecastLog(entries: Entry[], cellId: string, days = LOG_DAYS): 
   return dates.map((date) => {
     const e = mine.get(date);
     if (!e || e.gap || e.probability === null) {
-      return { date, probability: null, predicted: null, outcome: e?.outcome ?? null, verdict: 'none' as const };
+      return { date, probability: null, predicted: null, outcome: e?.outcome ?? null, verdict: 'none' as const, issuedLate: false };
     }
     const predicted = e.predicted ?? (e.probability >= DECISION_POINT ? 1 : 0);
     const verdict: Verdict = e.outcome === null ? 'pending' : e.outcome === predicted ? 'match' : 'miss';
-    return { date, probability: e.probability, predicted, outcome: e.outcome, verdict };
+    const issuedLate = Date.parse(e.issued_at) >= tehranDayStart(date);
+    return { date, probability: e.probability, predicted, outcome: e.outcome, verdict, issuedLate };
   });
 }

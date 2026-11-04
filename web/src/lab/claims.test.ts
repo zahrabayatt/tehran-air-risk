@@ -5,7 +5,9 @@ import { itersNum } from './state';
 import { STAGES } from './stages';
 import { ctx } from './testData';
 import type { LabState, Try } from './types';
-import { baselineCosts, verdict } from './views/result';
+import profile from '../../public/data/profile.json';
+import { DAILY_RUN_TEHRAN, DAILY_RUN_UTC } from '../config';
+import { baselineCosts, costByLambda, pipeline, verdict } from './views/result';
 import { linearFit, trainShares } from './views/problem';
 
 /**
@@ -384,5 +386,25 @@ describe('Daily forecast', () => {
   });
   it('the cutoff is the one the model file records', () => {
     expect(ctx.model.cutoff).toBe('12:00 Asia/Tehran');
+  });
+});
+
+describe('Held-out step: the selection-set limit', () => {
+  it('the cost-by-λ caption says the selection days are a warm half-year with the positive count from profile.json', () => {
+    const legend = costByLambda(ctx, {} as never).legend.join('\n');
+    expect(legend).toContain(`${profile.splits.selection.positives} positive days`);
+    expect(legend).toContain(`${profile.splits.selection.rows.toLocaleString('en-US')} days`);
+    expect(legend).toMatch(/warm half-year/);
+  });
+});
+
+describe('Daily schedule', () => {
+  it('the Lab shows the one schedule constant, 13:30 UTC, with Tehran time derived from it', () => {
+    expect(DAILY_RUN_UTC).toBe('13:30');
+    expect(DAILY_RUN_TEHRAN).toBe('17:00');
+    const pipelineText = pipeline(ctx, {} as never).texts.map((t) => t.t).join(' ');
+    expect(pipelineText).toContain(`${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran)`);
+    const stats = stage('Daily forecast').stats(ctx, {} as never);
+    expect(stats.find((r) => r.k === 'Scheduled')?.v).toBe(`${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran)`);
   });
 });

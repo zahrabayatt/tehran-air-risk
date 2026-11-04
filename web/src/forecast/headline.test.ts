@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cityHeadline, formatPercent, isStale, shortDayLabel, targetDateLabel, updatedLabel } from './headline';
+import { cityHeadline, dayHasEnded, formatPercent, isStale, shortDayLabel, targetDateLabel, updatedLabel } from './headline';
 
 const f = (probability: number) => ({ kind: 'forecast' as const, probability });
 const none = { kind: 'none' as const };
@@ -83,5 +83,18 @@ describe('isStale', () => {
   });
   it('treats an unreadable time as stale rather than showing an old forecast', () => {
     expect(isStale(at('2026-11-04T10:00:00Z'), 'not a time')).toBe(true);
+  });
+});
+
+describe('dayHasEnded (M5)', () => {
+  it('is true once the target date is before today in Tehran', () => {
+    // 2026-11-04T20:30Z is 00:00 on 5 November in Tehran.
+    expect(dayHasEnded('2026-11-04', new Date('2026-11-04T20:29:59Z'))).toBe(false);
+    expect(dayHasEnded('2026-11-04', new Date('2026-11-04T20:30:00Z'))).toBe(true);
+    expect(dayHasEnded('2026-11-04', new Date('2026-11-03T13:30:00Z'))).toBe(false);
+    expect(dayHasEnded('2026-11-04', new Date('2026-11-05T10:00:00Z'))).toBe(true);
+  });
+  it('is false for an unreadable date', () => {
+    expect(dayHasEnded('soon', new Date('2026-11-05T10:00:00Z'))).toBe(false);
   });
 });

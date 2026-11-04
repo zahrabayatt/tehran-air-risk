@@ -71,7 +71,7 @@ export const COST: Stage[] = [
     math: [
       {
         tex: tex`\text{loss}(f, y) = \begin{cases} -\log(f) & \text{if } y = 1 \\ -\log(1 - f) & \text{if } y = 0 \end{cases}`,
-        why: 'If the day was unhealthy, the loss is zero when f = 1 and grows without limit as f approaches 0. The other case mirrors it.',
+        why: 'If the day was above 35.4 μg/m³ (y = 1), the loss is zero when f = 1 and grows without limit as f approaches 0. The other case mirrors it.',
       },
       {
         tex: tex`\text{loss}(f, y) = -y \log(f) - (1 - y) \log(1 - f)`,
@@ -84,8 +84,8 @@ export const COST: Stage[] = [
     sk: 'from sklearn.metrics import log_loss\n\nlog_loss([y], [f], labels=[0, 1])',
     skNote: 'log_loss averages this over all the examples you pass.',
     tries: [
-      { label: 'Confident and right', note: 'Almost no loss: the prediction was 0.95 and the day was unhealthy.', set: { pv: 0.95, yv: 1 } },
-      { label: 'Confident and wrong', note: 'A large loss, which is the point: the day was unhealthy and the prediction was 0.05.', set: { pv: 0.05, yv: 1 } },
+      { label: 'Confident and right', note: 'Almost no loss: the prediction was 0.95 and the day was above 35.4 μg/m³.', set: { pv: 0.95, yv: 1 } },
+      { label: 'Confident and wrong', note: 'A large loss, which is the point: the day was above 35.4 μg/m³ and the prediction was 0.05.', set: { pv: 0.05, yv: 1 } },
       { label: 'Unsure', note: 'A moderate loss either way: a prediction of 0.5 is never very wrong or very right.', set: { pv: 0.5, yv: 0 } },
     ],
   },

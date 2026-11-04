@@ -112,3 +112,12 @@ def test_write_json_refuses_non_finite(tmp_path):
         export_data.write_json(tmp_path / "x.json", {"a": float("nan")})
     size = export_data.write_json(tmp_path / "y.json", {"a": [1, 2.5]})
     assert size == (tmp_path / "y.json").stat().st_size
+
+
+def test_committed_profile_lists_the_same_sources_as_the_exporter():
+    """profile.json is written from export_data.SOURCES; the committed copy must not drift from it."""
+    import json
+    from pathlib import Path
+    profile = json.loads((Path(__file__).resolve().parent.parent / "web" / "public" / "data" / "profile.json").read_text(encoding="utf-8"))
+    assert profile["sources"] == export_data.SOURCES
+    assert "ECMWF" in profile["sources"][1]["attribution"]

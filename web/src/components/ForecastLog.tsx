@@ -29,8 +29,8 @@ export function ForecastLog({ cellName, rows, picker }: ForecastLogProps) {
         <h2 id="log-h">How past forecasts turned out</h2>
         <p className="small" data-testid="log-title">
           {rows.length > 0
-            ? `${cellName}. Saved before each day begins, with the result added afterward, misses included.`
-            : 'Saved before each day begins, with the result added afterward, misses included.'}
+            ? `${cellName}. Usually saved before the day begins, with the result added afterward, misses included.`
+            : 'Usually saved before the day begins, with the result added afterward, misses included.'}
         </p>
       </div>
       {picker ? (
@@ -68,6 +68,12 @@ export function ForecastLog({ cellName, rows, picker }: ForecastLogProps) {
                   ) : (
                     <>
                       <span className="mono log__pct">{formatPercent(r.probability)}</span> {side(r.predicted)}
+                      {r.issuedLate ? (
+                        <span className="log__late" data-testid="issued-late">
+                          {' '}
+                          (saved after the day began)
+                        </span>
+                      ) : null}
                     </>
                   )}
                 </td>

@@ -11,6 +11,7 @@ no forecast has been issued yet. Each entry is one forecast for one cell and one
     model_version       "version" of model/model.json that produced it
     outcome             1 / 0 once the target day is over and observed, else null
     outcome_mean_pm25   the observed Tehran-day mean PM2.5 behind `outcome`, else null
+    outcome_note        only when an outcome was still missing 14 days after the target day: why it stays null
     gap                 true when no forecast could be made for this cell (nothing was invented)
     gap_reason          why, for a gap; null otherwise
     cams_forecast_pm25  CAMS's own forecast mean PM2.5 for the target day, display only, never a model input

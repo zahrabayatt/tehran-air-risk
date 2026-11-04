@@ -39,7 +39,7 @@ COLUMNS = ["cell_id", "time_utc", *POLLUTANTS, *WEATHER]
 # Task 1 found that multi-year requests time out; ~3 months for 12 locations is cheap and reliable.
 WINDOW_DAYS = 90
 ATTEMPTS = 5
-TIMEOUT_S = 120
+TIMEOUT_S = 45           # a hung connection must not hold a daily run: one attempt is cut off after this
 BACKOFF_S = 2.0          # waits 2, 4, 8, ... seconds between attempts
 RATE_LIMIT_WAIT_S = 65   # a 429 is the per-minute limit: wait for the window to reset
 
@@ -57,18 +57,26 @@ class _Retry(Exception):
 
 
 def _request(get: Callable, sleep: Callable[[float], None], url: str, params: dict,
-             n_locations: int, names: Sequence[str], attempts: int) -> list[pd.DataFrame]:
+             n_locations: int, names: Sequence[str], attempts: int,
+             deadline: float | None = None, clock: Callable[[], float] = time.monotonic) -> list[pd.DataFrame]:
     """GET `url`, retrying on network errors, HTTP 5xx, 429 and malformed bodies.
 
-    Returns one frame per location (`time_utc` plus `names`), in request order.
+    Returns one frame per location (`time_utc` plus `names`), in request order. When `deadline`
+    (a reading of `clock`) is given, no attempt starts after it and no wait is slept that would
+    run past it, so a chain of retries ends at most one attempt (TIMEOUT_S) after the deadline.
     """
     reason = "no attempt made"
     for attempt in range(attempts):
+        if deadline is not None and clock() >= deadline:
+            raise FetchError(f"{url} not fetched: time budget used up after {attempt} attempts ({reason})")
         try:
             return _attempt(get, url, params, n_locations, names, attempt)
         except _Retry as exc:
             reason = str(exc)
             if attempt < attempts - 1:
+                if deadline is not None and clock() + exc.wait >= deadline:
+                    raise FetchError(
+                        f"{url} not fetched: time budget used up after {attempt + 1} attempts ({reason})") from exc
                 sleep(exc.wait)
     raise FetchError(f"{url} failed after {attempts} attempts: {reason}")
 
@@ -153,7 +161,8 @@ def fetch_hourly(cells: Sequence[dict], start, end, *,
                  get: Callable | None = None, sleep: Callable[[float], None] | None = None,
                  window_days: int = WINDOW_DAYS, attempts: int = ATTEMPTS,
                  pause_s: float = 0.0, sources: Sequence[str] = ("air", "weather"),
-                 weather_url: str = FORECAST_URL) -> pd.DataFrame:
+                 weather_url: str = FORECAST_URL, deadline: float | None = None,
+                 clock: Callable[[], float] | None = None) -> pd.DataFrame:
     """Hourly pollutants and weather for `cells` over the UTC days `start` to `end` inclusive.
 
     Returns one long frame with columns `cell_id`, `time_utc` (tz-aware UTC), the six
@@ -167,12 +176,16 @@ def fetch_hourly(cells: Sequence[dict], start, end, *,
     `sources` picks what to request: "air" (pollutants), "weather", or both (the default);
     the frame then holds only those columns. `weather_url` swaps the weather endpoint; the daily
     pipeline uses the live forecast API when the historical one has not yet caught up.
+
+    `deadline` (a reading of `clock`, default `time.monotonic`) is a time budget for the whole
+    call: once it has passed, further retries and requests raise `FetchError` instead.
     """
     unknown = set(sources) - {"air", "weather"}
     if unknown or not sources:
         raise ValueError(f"sources must be 'air' and/or 'weather', got {tuple(sources)!r}")
     get = get or requests.get
     sleep = sleep or time.sleep
+    clock = clock or time.monotonic
     first, last = _day(start), _day(end)
     if first > last:
         raise ValueError(f"start {first} is after end {last}")
@@ -188,7 +201,7 @@ def fetch_hourly(cells: Sequence[dict], start, end, *,
             if source not in sources:
                 continue
             params = {**location, **window, "hourly": ",".join(names), **extra}
-            frames = _request(get, sleep, url, params, len(cells), names, attempts)
+            frames = _request(get, sleep, url, params, len(cells), names, attempts, deadline, clock)
             part = pd.concat([f.assign(cell_id=c["id"]) for c, f in zip(cells, frames)], ignore_index=True)
             part = _collapse_duplicates(part, names, url)
             merged = part if merged is None else merged.merge(part, on=["cell_id", "time_utc"], how="outer")

@@ -4,28 +4,25 @@ import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import history from '../../public/data/history.json';
 import profile from '../../public/data/profile.json';
-import { pooledRate } from '../forecast/summary';
-import { DEPLOYED_FEATURES, DataPage, percent } from './DataPage';
+import { DEPLOYED_FEATURES, DataPage, share } from './DataPage';
 
 const count = (n: number) => n.toLocaleString('en-US');
 const rows = (table: HTMLElement) => within(table).getAllByRole('row').slice(1);
 
-describe('percent', () => {
-  it('shows one decimal and never a bare zero for a small positive rate', () => {
-    expect(percent(0.0506)).toBe('5.1%');
-    expect(percent(0.4607)).toBe('46.1%');
-    expect(percent(0)).toBe('0%');
-    expect(percent(0.0019)).toBe('0.2%');
-    expect(percent(0.00004)).toBe('<0.1%');
+describe('share', () => {
+  it('shows positives over days with one decimal, and never a bare zero for a small positive share', () => {
+    expect(share(91, 1800)).toBe('5.1%');
+    expect(share(715, 1552)).toBe('46.1%');
+    expect(share(0, 1552)).toBe('0%');
+    expect(share(3, 1552)).toBe('0.2%');
+    expect(share(1, 100000)).toBe('<0.1%');
   });
 
-  it('recovers the day count first, so a stored four-decimal rate does not round twice', () => {
-    // 7 of 1,552 days is 0.451%, stored as 0.0045: rounding the stored value again would show 0.4%.
-    expect(percent(0.0045, 1552)).toBe('0.5%');
-    // 85 of 2,208 days is 3.85% only after rounding; the true share is 3.8%.
-    expect(percent(0.0385, 2208)).toBe('3.8%');
-    expect(percent(0.0715, 11436)).toBe('7.2%');
-    expect(percent(0, 1552)).toBe('0%');
+  it('uses exact counts, so a share near a rounding tie is not rounded twice', () => {
+    // 7 of 1,552 days is 0.4510%, so 0.5%; 85 of 2,208 is 3.8496%, so 3.8% (its stored four-decimal rate, 0.0385, would give 3.9%).
+    expect(share(7, 1552)).toBe('0.5%');
+    expect(share(85, 2208)).toBe('3.8%');
+    expect(share(818, 11436)).toBe('7.2%');
   });
 });
 
@@ -57,7 +54,7 @@ describe('DataPage', () => {
     expect(days).toBe(1552);
     expect(excluded?.textContent).toBe(String(profile.cell_count * days - profile.usable_cell_days));
     expect(excluded?.textContent).toBe('0');
-    expect(text).not.toContain('75');
+    expect(missing?.textContent).toBe(count(profile.missing_hours.count));
   });
 
   it('lists the funnel from labelled cell-days to the dataset with the DST-era rows dropped', () => {
@@ -92,7 +89,7 @@ describe('DataPage', () => {
 
   it('warns that the selection months are one warm half-year with 85 positive days', () => {
     render(<DataPage />);
-    expect(Math.round(profile.splits.selection.rows * profile.splits.selection.positive_rate)).toBe(85);
+    expect(profile.splits.selection.positives).toBe(85);
     expect(screen.getAllByText(/85 positive days/).length).toBeGreaterThan(0);
   });
 
@@ -102,10 +99,11 @@ describe('DataPage', () => {
     const body = rows(table);
     expect(body).toHaveLength(profile.yearly.length);
     expect(body[0].textContent).toContain('2022');
-    expect(body[0].textContent).toContain(percent(profile.yearly[0].rate, profile.yearly[0].days));
+    expect(body[0].textContent).toContain(share(profile.yearly[0].positives, profile.yearly[0].days));
     expect(body[3].textContent).toContain('9.3%');
     expect(body[3].textContent).toContain('60.5%');
-    expect(pooledRate(history as never)).toBeCloseTo(0.07, 3);
+    const total = profile.yearly.reduce((sum, y) => sum + y.positives, 0);
+    expect(share(total, profile.usable_cell_days)).toBe('7.0%');
     expect(screen.getAllByText(/7\.0%/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/all labelled days/i).length).toBeGreaterThan(0);
   });
@@ -115,7 +113,7 @@ describe('DataPage', () => {
     const body = rows(screen.getByRole('table', { name: 'Positive days by calendar month' }));
     expect(body).toHaveLength(12);
     expect(body[0].textContent).toContain('January');
-    expect(body[0].textContent).toContain(percent(history.by_month.pooled[0].rate, history.by_month.pooled[0].days));
+    expect(body[0].textContent).toContain(share(history.by_month.pooled[0].positives, history.by_month.pooled[0].days));
   });
 
   it('shows one row per cell with days, rate and mean PM2.5, strongest first', () => {

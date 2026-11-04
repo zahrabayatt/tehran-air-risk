@@ -100,7 +100,8 @@ def build_sample(train: pd.DataFrame, labels: pd.DataFrame, cell: str = SAMPLE_C
 # --- history.json ---------------------------------------------------------------
 
 def _rates(labels: pd.DataFrame, key: pd.Series, name: str) -> list[dict]:
-    return [{name: int(k), "days": int(len(g)), "rate": _r(g["y"].mean())}
+    # `positives` is the exact count; `rate` is rounded to four decimals, so the site shows positives / days.
+    return [{name: int(k), "days": int(len(g)), "positives": int(g["y"].sum()), "rate": _r(g["y"].mean())}
             for k, g in labels.groupby(key, sort=True)]
 
 
@@ -163,6 +164,7 @@ def build_profile(hourly: pd.DataFrame, labels: pd.DataFrame, windows: pd.DataFr
         lab = labels[labels["cell_id"] == cell]
         cells.append({"id": cell, "name": _NAMES.get(cell, cell),
                       "labelled_days": int(len(lab)),
+                      "positives": int(lab["y"].sum()),
                       "positive_rate": _r(lab["y"].mean()),
                       "mean_pm25": _r(lab["mean_pm25"].mean(), 2),
                       "rows": int((dataset["cell_id"] == cell).sum()),
@@ -186,9 +188,10 @@ def build_profile(hourly: pd.DataFrame, labels: pd.DataFrame, windows: pd.DataFr
         "splits": {name: {"rows": int(len(part)),
                           "start": str(min(part["target_date"])),
                           "end": str(max(part["target_date"])),
+                          "positives": int(part["y"].sum()),
                           "positive_rate": _r(part["y"].mean())}
                    for name, part in splits.items()},
-        "yearly": [{"year": int(y), "days": int(len(g)), "rate": _r(g["y"].mean())}
+        "yearly": [{"year": int(y), "days": int(len(g)), "positives": int(g["y"].sum()), "rate": _r(g["y"].mean())}
                    for y, g in labels.groupby(dates.dt.year)],
         "cells": cells,
     }

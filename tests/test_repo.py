@@ -62,6 +62,17 @@ def test_pages_deploys_only_after_ci_succeeds_on_main():
     assert "deploy-pages" in text and "upload-pages-artifact" in text
 
 
+def test_pages_build_brings_in_the_newest_predictions_from_main_after_checkout():
+    """The daily run commits predictions.json after CI's commit, so the push deploy must not publish an older file."""
+    text = read(".github/workflows/pages.yml")
+    build = text.split("\n  build:\n", 1)[1].split("\n  deploy:\n", 1)[0]
+    assert build.index("ref: ${{ github.event.workflow_run.head_sha }}") < build.index("git fetch --depth=1 origin main")
+    assert "git checkout FETCH_HEAD -- data/predictions.json" in build
+    assert build.index("git checkout FETCH_HEAD") < build.index("pnpm build")
+    # Only that one file is taken from main.
+    assert build.count("git checkout") == 1
+
+
 def test_every_deploy_shares_one_pages_concurrency_group_that_never_cancels():
     """pages.yml and the deploy job of daily.yml both use group `pages`, so two deploys never overlap."""
     pages = read(".github/workflows/pages.yml")
@@ -118,8 +129,8 @@ def test_readme_states_the_result_in_model_json():
 def test_readme_and_data_card_numbers_match_the_profile():
     profile = json.loads(read("web/public/data/profile.json"))
     cell_days = f"{profile['usable_cell_days']:,}"
-    # Pooled positive rate over all labelled days, from the per-cell rates in the profile.
-    positives = sum(c["positive_rate"] * c["labelled_days"] for c in profile["cells"])
+    # Pooled positive rate over all labelled days, from the exact per-cell counts in the profile.
+    positives = sum(c["positives"] for c in profile["cells"])
     pooled = f"{positives / profile['usable_cell_days'] * 100:.1f}%"
     dropped = str(profile["rows"]["dst_dropped"])
     for name in ("README.md", "docs/DATA_CARD.md"):

@@ -96,6 +96,7 @@
 }
 .forecast .lede { font-size: 18px; }
 
+.head__controls { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; max-width: 100%; }
 .layers {
   display: flex;
   flex-wrap: wrap;
@@ -118,6 +119,10 @@
   color: var(--ink);
 }
 .layers__btn[aria-pressed='true'] { background: var(--ac); color: var(--on); }
+
+.layers--days { max-width: 100%; }
+.mapday { font-size: 15px; color: var(--mut); }
+.mapday strong { color: var(--ink); font-weight: 600; }
 
 /* Map and side column */
 .mapgrid { display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; }
@@ -265,6 +270,8 @@
 
 @media (max-width: 640px) {
   .page.forecast { padding: 20px 16px 48px; }
+  .head__controls--days { align-items: stretch; width: 100%; }
+  .layers--days .layers__btn { flex: 1 1 auto; padding: 0 10px; }
   .card { padding: 16px; border-radius: 18px; }
   .mapcard { padding: 10px; }
   .tile { padding: 5px 6px; }

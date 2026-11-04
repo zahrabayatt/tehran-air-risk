@@ -6,6 +6,7 @@ import { RiskMap, type MapLabel, type MapMarker } from '../components/RiskMap';
 import { SeasonCard } from '../components/SeasonCard';
 import { GITHUB_URL } from '../config';
 import { placeCell } from '../forecast/cells';
+import { offeredDays } from '../forecast/days';
 import { loadForecastData, type ForecastData } from '../forecast/data';
 import {
   THRESHOLD_TEXT, cityHeadline, dayHasEnded, isStale, runDateLabel, targetDateLabel, updatedLabel, type CellForecast,
@@ -116,7 +117,22 @@ function Forecast({ data, now }: { data: ForecastData; now: Date }) {
     ? ''
     : entries.reduce((a, e) => (Date.parse(e.issued_at) > Date.parse(a) ? e.issued_at : a), entries[0].issued_at);
   const stale = !empty && isStale(now, latestIssued);
-  const target = empty ? '' : entries.reduce((a, e) => (e.target_date > a ? e.target_date : a), entries[0].target_date);
+  // The days still to come or under way in Tehran, oldest first. The page opens on the latest. With none left (a delayed
+  // run), it shows the latest target date, which is over, and says so.
+  const days = useMemo(() => offeredDays(entries, now), [entries, now]);
+  const [dayChoice, setDayChoice] = useState<string | null>(null);
+  const picked = days.find((d) => d.date === dayChoice) ?? days[days.length - 1] ?? null;
+  const target = picked
+    ? picked.date
+    : empty
+      ? ''
+      : entries.reduce((a, e) => (e.target_date > a ? e.target_date : a), entries[0].target_date);
+  const dayEntries = entries.filter((e) => e.target_date === target);
+  const dayIssued = picked
+    ? picked.issuedAt
+    : dayEntries.length === 0
+      ? latestIssued
+      : dayEntries.reduce((a, e) => (Date.parse(e.issued_at) > Date.parse(a) ? e.issued_at : a), dayEntries[0].issued_at);
   const current = useMemo(() => currentEntries(entries, target), [entries, target]);
 
   const pickPlace = (id: string) => {
@@ -184,31 +200,53 @@ function Forecast({ data, now }: { data: ForecastData; now: Date }) {
               <div className="meta" data-testid="forecast-meta">
                 <span>Forecast for {dateLabel}</span>
                 <span className="chip" data-testid="updated">
-                  Updated <time dateTime={latestIssued}>{updatedLabel(latestIssued)}</time>
+                  Updated <time dateTime={dayIssued}>{updatedLabel(dayIssued)}</time>
                 </span>
               </div>
               <h1>{headline.title}</h1>
               <p className="lede" data-testid="city-sub">
                 {headline.sub}
               </p>
-              {dayHasEnded(target, now) ? (
+              {days.length === 0 && dayHasEnded(target, now) ? (
                 <p className="small" data-testid="day-ended">
                   {dateLabel} has ended in Tehran. This is the last forecast issued for it; the next one appears after the next
                   scheduled run.
                 </p>
               ) : null}
             </div>
-            <div role="group" aria-label="Map layer" className="layers">
-              {(['model', 'cams'] as const).map((l) => (
-                <button key={l} type="button" aria-pressed={layer === l} className="layers__btn" onClick={() => setLayer(l)}>
-                  {layerLabel(l)}
-                </button>
-              ))}
+            <div className={days.length > 1 ? 'head__controls head__controls--days' : 'head__controls'}>
+              {days.length > 1 ? (
+                <div role="group" aria-label="Forecast day" className="layers layers--days">
+                  {days.map((d) => (
+                    <button
+                      key={d.date}
+                      type="button"
+                      aria-pressed={d.date === target}
+                      className="layers__btn"
+                      onClick={() => setDayChoice(d.date)}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div role="group" aria-label="Map layer" className="layers">
+                {(['model', 'cams'] as const).map((l) => (
+                  <button key={l} type="button" aria-pressed={layer === l} className="layers__btn" onClick={() => setLayer(l)}>
+                    {layerLabel(l)}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           <section className="mapgrid" aria-label="Forecast map">
             <div className="card mapcard">
+              {days.length > 1 && picked ? (
+                <div className="mapday" data-testid="map-day">
+                  Map shows <strong>{picked.label}</strong>
+                </div>
+              ) : null}
               <RiskMap tiles={tiles} onPick={pickCell} labels={labels} marker={marker} cityLabel={cityAt} />
               <div className="mapnote">
                 <span className="legend">

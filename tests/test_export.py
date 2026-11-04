@@ -78,6 +78,10 @@ def test_history_rates_and_daily_counts(built):
     for year, rows in labels.groupby(years):
         assert pooled[year]["rate"] == pytest.approx(rows["y"].mean(), abs=1e-4)
         assert pooled[year]["days"] == len(rows)
+        assert pooled[year]["positives"] == int(rows["y"].sum())
+    months = pd.to_datetime(labels["date"]).dt.month
+    for r in out["by_month"]["pooled"]:
+        assert r["positives"] == int(labels.loc[months == r["month"], "y"].sum())
     daily = out["daily"]
     assert sum(daily["positive_cells"]) == int(labels["y"].sum())
     assert len(daily["positive_cells"]) == (max(labels["date"]) - min(labels["date"])).days + 1
@@ -92,6 +96,11 @@ def test_profile_counts(built):
     assert out["rows"]["dst_dropped"] == len(windows) - len(ds) > 0
     assert out["rows"]["incomplete_inputs_dropped"] > 0
     assert out["splits"]["train"]["rows"] == len(train)
+    for name, part in (("train", train), ("selection", selection), ("held_out", held)):
+        assert out["splits"][name]["positives"] == int(part["y"].sum())
+    assert sum(y["positives"] for y in out["yearly"]) == int(labels["y"].sum())
+    for c in out["cells"]:
+        assert c["positives"] == int(labels.loc[labels["cell_id"] == c["id"], "y"].sum())
     assert out["missing_hours"]["count"] >= 2           # one null, one absent row
     assert 0 < out["missing_hours"]["share"] < 1
     assert {c["id"] for c in out["cells"]} == {"west-tehran", "far-east"}

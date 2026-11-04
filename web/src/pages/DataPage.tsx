@@ -2,8 +2,6 @@ import { useEffect } from 'react';
 import history from '../../public/data/history.json';
 import profile from '../../public/data/profile.json';
 import { GITHUB_URL } from '../config';
-import { pooledRate } from '../forecast/summary';
-import type { HistoryInfo } from '../forecast/types';
 import './data.css';
 
 const AIR_API_URL = 'https://open-meteo.com/en/docs/air-quality-api';
@@ -21,18 +19,10 @@ export const DEPLOYED_FEATURES = ['pm2_5_mean', 'pm2_5_max', 'pm2_5_last', 'seas
 
 const count = (n: number) => n.toLocaleString('en-US');
 
-/**
- * A rate as a percentage with one decimal. A bare "0%" is only ever a real zero.
- *
- * The data files keep rates to four decimals, so rounding such a rate again to one decimal can land on the
- * wrong side (7 of 1,552 days is 0.45%, stored as 0.0045 and shown as 0.4%). When the number of days is
- * known, the count of positive days is recovered first (it is the whole number nearest to rate * days; the
- * stored rounding is far smaller than half a day) and the percentage is taken from that count.
- */
-export function percent(rate: number, days?: number): string {
-  const exact = days && days > 0 ? Math.round(rate * days) / days : rate;
-  if (exact === 0) return '0%';
-  const pct = exact * 100;
+/** Positive days as a percentage of days, with one decimal. A bare "0%" is only ever a real zero. */
+export function share(positives: number, days: number): string {
+  if (positives === 0) return '0%';
+  const pct = (positives / days) * 100;
   return pct < 0.05 ? '<0.1%' : `${pct.toFixed(1)}%`;
 }
 
@@ -42,19 +32,17 @@ const daysBetween = (start: string, end: string) => Math.round((Date.parse(end) 
 const longDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' });
 
-/** A bar for a rate; the number beside it carries the meaning, so the bar is hidden from screen readers. */
-function RateBar({ rate, days, max }: { rate: number; days: number; max: number }) {
+/** A bar for a share of days, scaled to `max` (a fraction); the number beside it carries the meaning, so the bar is hidden from screen readers. */
+function RateBar({ positives, days, max }: { positives: number; days: number; max: number }) {
   return (
     <span className="ratebar">
       <span className="ratebar__track" aria-hidden="true">
-        <span className="ratebar__fill" style={{ width: `${max > 0 ? (rate / max) * 100 : 0}%` }} />
+        <span className="ratebar__fill" style={{ width: `${max > 0 && days > 0 ? (positives / days / max) * 100 : 0}%` }} />
       </span>
-      <span className="ratebar__value mono">{percent(rate, days)}</span>
+      <span className="ratebar__value mono">{share(positives, days)}</span>
     </span>
   );
 }
-
-const historyInfo = history as unknown as HistoryInfo;
 
 export function DataPage() {
   useEffect(() => {
@@ -66,21 +54,22 @@ export function DataPage() {
   const daysPerCell = daysBetween(range.start, range.end);
   const excluded = profile.cell_count * daysPerCell - profile.usable_cell_days;
   const removedAtStart = profile.usable_cell_days - rows.labelled_windows;
-  const pooled = pooledRate(historyInfo);
+  const pooledPositives = profile.yearly.reduce((sum, y) => sum + y.positives, 0);
 
   const parts = [
     { key: 'train', name: 'Training', use: 'Fits the model', ...splits.train },
     { key: 'selection', name: 'Selection', use: 'Chooses features and penalty strength', ...splits.selection },
     { key: 'held_out', name: 'Held-out', use: 'Reported once, never used to choose', ...splits.held_out },
   ];
-  const selectionPositives = Math.round(splits.selection.rows * splits.selection.positive_rate);
+  const selectionPositives = splits.selection.positives;
 
-  const westByYear = new Map((historyInfo.by_year['west-tehran'] ?? []).map((r) => [r.year, r]));
-  const yearMax = Math.max(...profile.yearly.map((y) => y.rate), ...[...westByYear.values()].map((r) => r.rate));
-  const months = [...(historyInfo.by_month.pooled ?? [])].sort((a, b) => a.month - b.month);
-  const monthMax = Math.max(...months.map((m) => m.rate));
-  const cells = [...profile.cells].sort((a, b) => b.positive_rate - a.positive_rate);
-  const cellMax = Math.max(...cells.map((c) => c.positive_rate));
+  const fraction = (r: { positives: number; days: number }) => r.positives / r.days;
+  const westByYear = new Map(history.by_year['west-tehran'].map((r) => [r.year, r]));
+  const yearMax = Math.max(...profile.yearly.map(fraction), ...[...westByYear.values()].map(fraction));
+  const months = [...history.by_month.pooled].sort((a, b) => a.month - b.month);
+  const monthMax = Math.max(...months.map(fraction));
+  const cells = [...profile.cells].sort((a, b) => b.positives - a.positives);
+  const cellMax = Math.max(...cells.map((c) => c.positives / c.labelled_days));
 
   const funnel = [
     {
@@ -220,7 +209,7 @@ export function DataPage() {
                   <td className="num mono">{count(p.rows)}</td>
                   <td className="mono">{p.start}</td>
                   <td className="mono">{p.end}</td>
-                  <td className="num mono">{percent(p.positive_rate, p.rows)}</td>
+                  <td className="num mono">{share(p.positives, p.rows)}</td>
                   <td className="muted">{p.use}</td>
                 </tr>
               ))}
@@ -229,7 +218,7 @@ export function DataPage() {
         </div>
         <p className="small">
           The selection months are one warm half-year with only {selectionPositives} positive days out of{' '}
-          {count(splits.selection.rows)} ({percent(splits.selection.positive_rate, splits.selection.rows)}). That is little to choose
+          {count(splits.selection.rows)} ({share(splits.selection.positives, splits.selection.rows)}). That is little to choose
           between settings with, so only two feature sets and five penalty strengths were compared.
         </p>
       </section>
@@ -283,7 +272,7 @@ export function DataPage() {
         <div>
           <h2 id="years-h">Days {THRESHOLD_TEXT}, by year</h2>
           <p className="small">
-            Rates over all labelled days, pooled over the {profile.cell_count} squares: {percent(pooled)} of{' '}
+            Rates over all labelled days, pooled over the {profile.cell_count} squares: {share(pooledPositives, profile.usable_cell_days)} of{' '}
             {count(profile.usable_cell_days)} cell-days. They describe the whole history, including days the model was
             later tested on, so they are context and not what the model learned from.
           </p>
@@ -311,10 +300,10 @@ export function DataPage() {
                     </th>
                     <td className="num mono">{count(y.days)}</td>
                     <td>
-                      <RateBar rate={y.rate} days={y.days} max={yearMax} />
+                      <RateBar positives={y.positives} days={y.days} max={yearMax} />
                     </td>
                     <td>
-                      <RateBar rate={west?.rate ?? 0} days={west?.days ?? 0} max={yearMax} />
+                      <RateBar positives={west?.positives ?? 0} days={west?.days ?? 1} max={yearMax} />
                     </td>
                   </tr>
                 );
@@ -354,7 +343,7 @@ export function DataPage() {
                   <th scope="row">{MONTH_NAMES[m.month - 1]}</th>
                   <td className="num mono">{count(m.days)}</td>
                   <td>
-                    <RateBar rate={m.rate} days={m.days} max={monthMax} />
+                    <RateBar positives={m.positives} days={m.days} max={monthMax} />
                   </td>
                 </tr>
               ))}
@@ -391,7 +380,7 @@ export function DataPage() {
                   <th scope="row">{c.name}</th>
                   <td className="num mono">{count(c.labelled_days)}</td>
                   <td>
-                    <RateBar rate={c.positive_rate} days={c.labelled_days} max={cellMax} />
+                    <RateBar positives={c.positives} days={c.labelled_days} max={cellMax} />
                   </td>
                   <td className="num mono">{c.mean_pm25.toFixed(2)}</td>
                 </tr>

@@ -30,6 +30,15 @@ jobs:
       - uses: actions/checkout@v4.2.2
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+      # The daily forecast workflow commits data/predictions.json to main and deploys that commit
+      # itself. CI's head_sha may be older than that commit, so building it as it stands could put
+      # an older forecast file on the site. Take the latest predictions.json from main; everything
+      # else is still exactly the commit CI checked.
+      - name: Use the newest forecasts from main
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --depth=1 origin main
+          git checkout FETCH_HEAD -- data/predictions.json
       - uses: pnpm/action-setup@v4.1.0
         with:
           package_json_file: web/package.json

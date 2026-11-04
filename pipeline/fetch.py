@@ -40,6 +40,7 @@ COLUMNS = ["cell_id", "time_utc", *POLLUTANTS, *WEATHER]
 WINDOW_DAYS = 90
 ATTEMPTS = 5
 TIMEOUT_S = 45           # a hung connection must not hold a daily run: one attempt is cut off after this
+HISTORY_TIMEOUT_S = 120  # the offline history rebuild (this module's CLI) asks for 90-day windows and has no budget
 BACKOFF_S = 2.0          # waits 2, 4, 8, ... seconds between attempts
 RATE_LIMIT_WAIT_S = 65   # a 429 is the per-minute limit: wait for the window to reset
 
@@ -256,6 +257,8 @@ def _caching_get(cache_dir: Path, get: Callable) -> Callable:
 
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Fetch hourly history for the 12 grid cells.")
+    global TIMEOUT_S
+    TIMEOUT_S = HISTORY_TIMEOUT_S
     ap.add_argument("--start", required=True, help="first UTC day, YYYY-MM-DD")
     ap.add_argument("--end", required=True, help="last UTC day (inclusive), YYYY-MM-DD")
     ap.add_argument("--out", required=True, help="output path, e.g. data/raw/hourly.csv.gz")

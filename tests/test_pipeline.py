@@ -733,8 +733,10 @@ def test_budget_stops_retries_at_once_when_a_wait_would_overrun_it():
     assert clock.now == fetch.RATE_LIMIT_WAIT_S
 
 
-def test_fill_outcomes_gives_up_when_its_budget_is_spent(tmp_path):
+def test_fill_outcomes_gives_up_when_its_budget_is_spent(tmp_path, monkeypatch):
     import requests
+    # A budget shorter than the retry chain (5 attempts of TIMEOUT_S plus waits), so the budget ends it.
+    monkeypatch.setattr(fill_outcomes, "BUDGET_S", 60)
     clock = Clock()
 
     def hang(url, params, timeout=None):
@@ -743,7 +745,7 @@ def test_fill_outcomes_gives_up_when_its_budget_is_spent(tmp_path):
 
     path = tmp_path / "p.json"
     store.save(path, [entry()])
-    with pytest.raises(FetchError):
+    with pytest.raises(FetchError, match="time budget"):
         fill_outcomes.run(now=pd.Timestamp("2026-11-05T08:00:00Z"), get=hang, sleep=clock.sleep, clock=clock,
                           predictions_path=path)
     assert clock.now <= fill_outcomes.BUDGET_S + fetch.TIMEOUT_S
@@ -820,3 +822,16 @@ def test_pages_workflow_gives_only_the_deploy_job_the_oidc_token():
         "build": {"contents": "read", "pages": "write"},         # actions/configure-pages; no id-token
         "deploy": {"pages": "write", "id-token": "write"},       # actions/deploy-pages
     }
+
+
+def test_a_crashed_step_still_fails_the_daily_run_after_gaps_are_committed():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "id: predict" in text and "id: fill" in text
+    commit = text.index("name: Commit predictions")
+    fail = text.index("name: Fail the run if a step crashed")
+    assert commit < fail < text.index("\n  build:")
+    assert "steps.predict.outcome == 'failure' || steps.fill.outcome == 'failure'" in text[fail:]
+
+
+def test_history_rebuild_keeps_a_longer_timeout_than_the_daily_run():
+    assert fetch.HISTORY_TIMEOUT_S > fetch.TIMEOUT_S

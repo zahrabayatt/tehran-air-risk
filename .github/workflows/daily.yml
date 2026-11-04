@@ -7,8 +7,8 @@ name: Daily forecast
 # The target date comes from Tehran time inside the script, never from the runner's clock, so a
 # late or manually started run still forecasts the right day.
 #
-# Why 13:30 UTC: Open-Meteo published the 00 UTC CAMS run about 9.7 hours after its start on the day
-# it was measured (docs/DATA_PROFILE.md, "Live vs history"), and live inputs matched the history the
+# Why 13:30 UTC: in the one observation so far (2026-11-04), Open-Meteo published the 00 UTC CAMS run
+# about 9.7 hours after its start (docs/DATA_PROFILE.md, "Live vs history"), and live inputs matched the history the
 # model was trained on when fetched at 13:30-13:36 UTC. An earlier time left only a thin margin.
 on:
   schedule:
@@ -48,6 +48,7 @@ jobs:
       # expected. The step timeouts are a second limit above those budgets, and continue-on-error
       # lets the commit step save whatever gaps were already written even if a step is cut off.
       - name: Issue today's forecast
+        id: predict
         timeout-minutes: 15
         continue-on-error: true
         run: |
@@ -58,6 +59,7 @@ jobs:
           exit "$status"
 
       - name: Fill outcomes for finished days
+        id: fill
         timeout-minutes: 10
         continue-on-error: true
         run: |
@@ -82,6 +84,15 @@ jobs:
             git push || { git pull --rebase && git push; }
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # continue-on-error above only lets the commit save gaps first. A crash or a step timeout still
+      # fails the run here (outcome is the result before continue-on-error), so it shows red and the
+      # site is not redeployed from a broken run.
+      - name: Fail the run if a step crashed
+        if: ${{ always() && (steps.predict.outcome == 'failure' || steps.fill.outcome == 'failure') }}
+        run: |
+          echo "::error::predict: ${{ steps.predict.outcome }}, fill_outcomes: ${{ steps.fill.outcome }}"
+          exit 1
 
   build:
     needs: forecast

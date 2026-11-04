@@ -39,7 +39,7 @@ Open-Meteo hourly data (12 cells) -------------+
 ```
 
 - **Training:** Python 3.10+, NumPy from-scratch gradient descent, pandas for preparation, scikit-learn only as a comparison check. Dependencies pinned.
-- **Daily run:** one scheduled workflow at 10:00 UTC (13:30 Tehran): fetch all 12 cells, build features, apply the one frozen model, append to `predictions.json`, fill in earlier outcomes, commit that one file, build, deploy.
+- **Daily run:** one scheduled workflow at 13:30 UTC (17:00 Tehran): fetch all 12 cells, build features, apply the one frozen model, append to `predictions.json`, fill in earlier outcomes, commit that one file, build, deploy.
 - **Site:** Vite, React, TypeScript. `HashRouter`, so deep links work on Pages. KaTeX for math. SVG charts. The Forecast page reads `predictions.json`; the Lab and Data pages read the exported model, profile and history files.
 - **Model file:** `model.json` holds feature names and order, weights, bias, scaling means and standard deviations, chosen hyperparameters, train, selection and held-out cost, both baselines, the candidates compared, cost history, row counts, date ranges, training timestamp, measured runtime, and environment.
 

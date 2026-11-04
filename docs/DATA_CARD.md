@@ -6,7 +6,7 @@ The dataset behind the Tehran Air Risk model: hourly modeled air quality for twe
 - **The values are modeled, not station measurements.** Nothing here comes directly from a monitoring station in Tehran.
 - **Resolution:** the model grid is 0.4 degrees, about 44 km north to south and about 36 km east to west at Tehran's latitude: about 44 by 36 km. The map uses a 12-cell grid. Every place inside a cell shares one value.
 - **Period:** 2022-08-04 to 2026-11-02, 1,552 days per cell.
-- **Weather** (candidate inputs only): Open-Meteo Historical Forecast API, `models=ecmwf_ifs`, CC-BY 4.0, credit Open-Meteo.
+- **Weather** (candidate inputs only): Open-Meteo Historical Forecast API, `models=ecmwf_ifs`, CC-BY 4.0, credit Open-Meteo and ECMWF (IFS open data).
 - **City outline** on the Forecast map: © OpenStreetMap contributors, ODbL.
 
 ## The grid

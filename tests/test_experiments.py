@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from pathlib import Path
 
@@ -174,7 +175,7 @@ def test_committed_fixtures_are_current():
     model = json.loads(export_lab_fixtures.MODEL_PATH.read_text(encoding="utf-8"))
     fresh = json.loads(json.dumps(export_lab_fixtures.build_fixtures(sample, model), allow_nan=False))
     committed = json.loads(export_lab_fixtures.FIXTURES_PATH.read_text(encoding="utf-8"))
-    assert fresh == committed, "rerun: python -m training.export_lab_fixtures"
+    assert_close_tree(fresh, committed, "rerun: python -m training.export_lab_fixtures")
 
 
 def test_fixture_runs_stop_where_python_stops():
@@ -182,3 +183,23 @@ def test_fixture_runs_stop_where_python_stops():
     diverging = [c for c in fx["runOne"] if c["divergedAt"] is not None]
     assert diverging and all(c["divergedAt"] == len(c["jHistory"]) + 1 for c in diverging)
     assert all(np.isfinite(c["jHistory"]).all() for c in fx["runOne"] + fx["runMulti"])
+
+
+def assert_close_tree(a, b, path="fixtures", rel=1e-9, abs_=1e-12):
+    """Equal structure and strings; numbers equal within a relative tolerance.
+
+    Exact float equality fails across platforms: NumPy on Linux CI and on Windows can differ in the
+    last bits of a sum, so regenerated fixtures are compared with a tolerance far below anything shown.
+    """
+    if isinstance(a, dict) and isinstance(b, dict):
+        assert a.keys() == b.keys(), f"{path}: keys differ"
+        for k in a:
+            assert_close_tree(a[k], b[k], f"{path}.{k}", rel, abs_)
+    elif isinstance(a, list) and isinstance(b, list):
+        assert len(a) == len(b), f"{path}: lengths differ"
+        for i, (x, y) in enumerate(zip(a, b)):
+            assert_close_tree(x, y, f"{path}[{i}]", rel, abs_)
+    elif isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        assert math.isclose(a, b, rel_tol=rel, abs_tol=abs_), f"{path}: {a} != {b}"
+    else:
+        assert a == b, f"{path}: {a!r} != {b!r}"

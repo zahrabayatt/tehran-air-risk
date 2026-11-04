@@ -1,9 +1,9 @@
 // Site-wide constants. Change a value here and every page follows.
 export const AUTHOR = 'Zahra Bayat';
 /** Repository link. Leave empty to hide the GitHub links. */
-export const GITHUB_URL = 'https://github.com/Zahrabayat/tehran-air-risk';
+export const GITHUB_URL = 'https://github.com/zahrabayatt/tehran-air-risk';
 /** Link to the sibling project. Leave empty to hide the "Other project" link. */
-export const HOUSE_URL = 'https://zahrabayat.github.io/tehran-house-price/';
+export const HOUSE_URL = 'https://zahrabayatt.github.io/tehran-house-price/';
 
 /** When the daily workflow runs, in UTC. A test checks it against the cron in .github/workflows/daily.yml. */
 export const DAILY_RUN_UTC = '13:30';

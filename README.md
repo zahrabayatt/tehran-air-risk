@@ -2,9 +2,9 @@
 
 A small website that forecasts, every day, how likely it is that tomorrow's average PM2.5 will be above 35.4 μg/m³ in each of twelve squares covering Tehran and its surroundings. It is built to show how a logistic regression model works, from the hourly data to the trained weights, and to be honest about what the forecast can and cannot tell you.
 
-Live site: https://zahrabayat.github.io/tehran-air-risk/
+Live site: https://zahrabayatt.github.io/tehran-air-risk/
 
-Sister project: [Tehran House Price Estimator](https://zahrabayat.github.io/tehran-house-price/) ([code](https://github.com/Zahrabayat/tehran-house-price)), which uses linear regression on apartment ads.
+Sister project: [Tehran House Price Estimator](https://zahrabayatt.github.io/tehran-house-price/) ([code](https://github.com/zahrabayatt/tehran-house-price)), which uses linear regression on apartment ads.
 
 The site has three pages:
 

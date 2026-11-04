@@ -242,9 +242,10 @@ describe('divergence', () => {
     expect(r.diverged).toBe(0);
     expect(r.h.length).toBe(0);
     // The data term of the cost (mean loss) is finite there, because only the log's argument is clipped.
-    // Only the 0 x infinity penalty term turns the full cost into NaN, so the parameter check is what stops the run.
+    // cost skips the penalty when lambda is 0, so the full cost is finite too: only the parameter check stops the run.
     const dataTerm = (w: number[]) => predictProba(Z5, w, 0).reduce((s, p, i) => s + logLoss(p, y[i]), 0) / y.length;
     expect(Number.isFinite(dataTerm([1e200, 0, 0, 0, 0]))).toBe(true);
+    expect(Number.isFinite(cost(Z5, y, [1e200, 0, 0, 0, 0], 0, 0))).toBe(true);
     expect(Number.isFinite(cost(Z5, y, [1e150, 0, 0, 0, 0], 0, 0))).toBe(true);
     const r2 = descend(Z5, y, [1e150, 0, 0, 0, 0], 0, 0.1, 5, 0);
     expect(r2.diverged).toBeNull();

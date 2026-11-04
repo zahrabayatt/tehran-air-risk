@@ -234,7 +234,7 @@ describe('Learning rate presets', () => {
     expect(last(r[2])).toBeGreaterThan(last(r[3]) - 0.02);
     expect(last(r[3])).toBeLessThan(ctx.star.j * 1.1);
   });
-  it('Too large: the largest rate jumps up and down, the run is not stopped, and the other rate is not stopped either', () => {
+  it('Too large: the largest rate jumps up and down and its run is not stopped', () => {
     const r = race('Too large');
     const big = r[r.length - 1].run.h.map((q) => q.j);
     expect(r[r.length - 1].run.diverged).toBeNull();

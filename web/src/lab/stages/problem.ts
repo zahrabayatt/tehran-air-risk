@@ -106,7 +106,7 @@ export const PROBLEM: Stage[] = [
     },
     code: [lab('build_row')],
     sk: '# No direct equivalent. Labels come from the problem:\ny = (tomorrow_pm25 > 35.4).astype(int)',
-    skNote: 'scikit-learn cannot check time alignment for you, so this project checks it with automated tests (tests/test_leakage.py) that fail the build if an input is later than the cutoff.',
+    skNote: 'scikit-learn cannot check time alignment for you, so this project checks it with automated tests (tests/test_leakage.py) that fail if any input is later than the cutoff.',
     tries: [
       {
         label: 'A stricter threshold',

@@ -14,7 +14,7 @@
  *
  * Runs are numbered by state. A run of `iters` updates has iters + 1 states, 0 to iters: state k is
  * the point after k updates, and state 0 is the starting point. A run stops at the first state whose
- * cost, weights or bias are not finite. That state is not kept, and `diverged` is its number, so
+ * cost, weights or bias are not finite, or whose sum of squared weights overflows. That state is not kept, and `diverged` is its number, so
  * `h.length === diverged`. A run that finishes has `diverged === null`. Every kept number is finite.
  */
 
@@ -98,14 +98,14 @@ export function predictProba(X: Matrix, w: number[], b: number): number[] {
   return out;
 }
 
-/** Mean loss over the rows, plus lambda/(2m) times the sum of squared weights. */
+/** Mean loss over the rows, plus lambda/(2m) times the sum of squared weights (skipped when lambda is 0). */
 export function cost(X: Matrix, y: number[], w: number[], b: number, lambda = 0): number {
   const f = predictProba(X, w, b);
   let s = 0;
   for (let i = 0; i < f.length; i++) s += logLoss(f[i], y[i]);
   let penalty = 0;
   for (let j = 0; j < w.length; j++) penalty += w[j] * w[j];
-  return s / X.length + (lambda / (2 * X.length)) * penalty;
+  return s / X.length + (lambda === 0 ? 0 : (lambda / (2 * X.length)) * penalty);
 }
 
 /** Gradient of cost with respect to w and b. */
@@ -164,8 +164,8 @@ const sumSquares = (v: number[]) => v.reduce((s, x) => s + x * x, 0);
  * Batch gradient descent from (w0, b0), keeping every state. Stops at the first state where a weight
  * or the bias is not finite, the sum of squared weights overflows a 64-bit number, or the cost is not
  * finite, exactly as training/model.py does. The parameter check is explicit: the logistic cost itself
- * stays finite when a probability reaches 0 or 1 (only the log's argument is clipped), so without it
- * only the lambda * sum(w^2) term would notice, and not at all when lambda is 0.
+ * stays finite when a probability reaches 0 or 1 (only the log's argument is clipped), and cost skips the
+ * penalty term when lambda is 0, so without this check nothing would notice the overflow.
  */
 export function descend(X: Matrix, y: number[], w0: number[], b0: number, alpha: number, iters: number, lambda = 0): Run {
   const t0 = performance.now();

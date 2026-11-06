@@ -1,13 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-export type Theme = 'light' | 'asphalt';
+export type Theme = 'light' | 'dark';
 export const THEME_KEY = 'tar-theme';
 
+/** The stored theme. Dark unless the visitor chose light. ("asphalt" was the old name of dark.) */
 export function readStoredTheme(): Theme {
   try {
-    return localStorage.getItem(THEME_KEY) === 'asphalt' ? 'asphalt' : 'light';
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
   } catch {
-    return 'light';
+    return 'dark';
   }
 }
 
@@ -19,11 +20,14 @@ function storeTheme(theme: Theme): void {
   }
 }
 
-/** Light or asphalt, remembered across visits when storage is available. */
+/** Dark by default, light on request, remembered across visits when storage is available. */
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
   const toggle = useCallback(() => {
-    const next: Theme = theme === 'light' ? 'asphalt' : 'light';
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
     storeTheme(next);
     setTheme(next);
   }, [theme]);

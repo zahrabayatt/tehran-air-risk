@@ -1,4 +1,4 @@
-/* Tokens copied from docs/design/AirHome.dc.html. Light is the default; Asphalt is the dark theme. */
+/* Tokens copied from docs/design/AirHome.dc.html. Dark is the default (.t.dark); light on request. */
 :root,
 .t {
   --bg: #F5F6F7;
@@ -31,7 +31,8 @@ body {
   margin: 0;
   background: #F5F6F7;
 }
-body:has(.t.dark) {
+body:has(.t.dark),
+:root[data-theme='dark'] body {
   background: #1F2225;
 }
 
@@ -103,16 +104,24 @@ button:focus-visible { position: relative; z-index: 1; }
   color: var(--on);
   font-weight: 600;
 }
-.theme-toggle {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 0;
-  background: transparent;
-  color: var(--mut);
-  border-radius: 999px;
-  font: inherit;
+.site-header__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.theme-btn {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--sf);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
   cursor: pointer;
 }
+.theme-btn:hover { background: var(--bg); }
 
 .page {
   flex: 1 0 auto;

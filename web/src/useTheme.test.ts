@@ -8,17 +8,19 @@ afterEach(() => {
 });
 
 describe('useTheme', () => {
-  it('defaults to light and persists the toggle', () => {
+  it('defaults to dark and persists the toggle', () => {
     const { result } = renderHook(() => useTheme());
-    expect(result.current.theme).toBe('light');
+    expect(result.current.theme).toBe('dark');
     act(() => result.current.toggle());
-    expect(result.current.theme).toBe('asphalt');
-    expect(localStorage.getItem(THEME_KEY)).toBe('asphalt');
+    expect(result.current.theme).toBe('light');
+    expect(localStorage.getItem(THEME_KEY)).toBe('light');
   });
 
-  it('reads a stored theme', () => {
+  it('reads a stored theme, and treats the old name "asphalt" as dark', () => {
+    localStorage.setItem(THEME_KEY, 'light');
+    expect(readStoredTheme()).toBe('light');
     localStorage.setItem(THEME_KEY, 'asphalt');
-    expect(readStoredTheme()).toBe('asphalt');
+    expect(readStoredTheme()).toBe('dark');
   });
 
   it('still works when storage throws', () => {
@@ -29,8 +31,8 @@ describe('useTheme', () => {
       throw new Error('blocked');
     });
     const { result } = renderHook(() => useTheme());
-    expect(result.current.theme).toBe('light');
+    expect(result.current.theme).toBe('dark');
     act(() => result.current.toggle());
-    expect(result.current.theme).toBe('asphalt');
+    expect(result.current.theme).toBe('light');
   });
 });

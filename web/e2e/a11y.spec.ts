@@ -66,15 +66,15 @@ const LAB_STEPS = [
 ];
 const LAB: Route = ROUTES.find((r) => r.name === 'Model Lab') as Route;
 const WIDTHS = [1280, 390];
-const THEMES = ['light', 'asphalt'] as const;
+const THEMES = ['dark', 'light'] as const;
 
 async function open(page: Page, route: Route, theme: (typeof THEMES)[number]) {
   const { hash, heading } = route;
   await route.prepare?.(page);
   await page.goto(hash);
-  if (theme === 'asphalt') {
-    await page.getByRole('button', { name: 'Asphalt' }).click();
-    await expect(page.locator('.app')).toHaveClass(/dark/);
+  if (theme === 'light') {
+    await page.getByRole('button', { name: 'Switch to light theme' }).click();
+    await expect(page.locator('.app')).not.toHaveClass(/dark/);
   }
   await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
   await route.ready?.(page);

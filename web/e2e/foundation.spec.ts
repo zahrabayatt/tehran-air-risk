@@ -37,17 +37,23 @@ test('pill navigation moves between routes', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Modeled air, not measured air' })).toBeVisible();
 });
 
-test('theme button switches and survives a reload', async ({ page }) => {
+test('the site opens dark, and the theme button switches and survives a reload', async ({ page }) => {
   await page.goto('#/');
   const app = page.locator('.app');
-  await expect(app).not.toHaveClass(/dark/);
-  await page.getByRole('button', { name: 'Asphalt' }).click();
   await expect(app).toHaveClass(/dark/);
-  await expect(page.getByRole('button', { name: 'Light' })).toBeVisible();
+  await page.getByRole('button', { name: 'Switch to light theme' }).click();
+  await expect(app).not.toHaveClass(/dark/);
   await page.reload();
-  await expect(page.locator('.app')).toHaveClass(/dark/);
-  await page.getByRole('button', { name: 'Light' }).click();
   await expect(page.locator('.app')).not.toHaveClass(/dark/);
+  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await expect(page.locator('.app')).toHaveClass(/dark/);
+});
+
+test('the navigation holds only pages, in the order Forecast, Data, Model Lab', async ({ page }) => {
+  await page.goto('#/');
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await expect(nav.getByRole('link')).toHaveText(['Forecast', 'Data', 'Model Lab']);
+  await expect(page.getByText(/asphalt/i)).toHaveCount(0);
 });
 
 test('footer names the author, credits the sources and links to the code and the other project', async ({ page }) => {

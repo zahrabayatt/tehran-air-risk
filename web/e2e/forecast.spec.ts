@@ -501,12 +501,12 @@ test.describe('real predictions.json', () => {
   });
 });
 
-for (const theme of ['light', 'asphalt'] as const) {
+for (const theme of ['dark', 'light'] as const) {
   async function themed(page: Page, body: unknown) {
     await open(page, body);
-    if (theme === 'asphalt') {
-      await page.getByRole('button', { name: 'Asphalt' }).click();
-      await expect(page.locator('.app')).toHaveClass(/dark/);
+    if (theme === 'light') {
+      await page.getByRole('button', { name: 'Switch to light theme' }).click();
+      await expect(page.locator('.app')).not.toHaveClass(/dark/);
     }
     await page.waitForLoadState('networkidle');
   }
@@ -575,9 +575,9 @@ for (const theme of ['light', 'asphalt'] as const) {
     test('no serious or critical accessibility violations: the day switch on both days, 1280px', async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await open(page, twoDays(), NOW_TWO_DAYS);
-      if (theme === 'asphalt') {
-        await page.getByRole('button', { name: 'Asphalt' }).click();
-        await expect(page.locator('.app')).toHaveClass(/dark/);
+      if (theme === 'light') {
+        await page.getByRole('button', { name: 'Switch to light theme' }).click();
+        await expect(page.locator('.app')).not.toHaveClass(/dark/);
       }
       await expect(dayGroup(page)).toBeVisible();
       expect(await serious(page)).toEqual([]);
@@ -589,9 +589,9 @@ for (const theme of ['light', 'asphalt'] as const) {
     test('phone width: the day switch fits, nothing scrolls sideways, no serious violations', async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       await open(page, twoDays(), NOW_TWO_DAYS);
-      if (theme === 'asphalt') {
-        await page.getByRole('button', { name: 'Asphalt' }).click();
-        await expect(page.locator('.app')).toHaveClass(/dark/);
+      if (theme === 'light') {
+        await page.getByRole('button', { name: 'Switch to light theme' }).click();
+        await expect(page.locator('.app')).not.toHaveClass(/dark/);
       }
       await expect(dayGroup(page)).toBeVisible();
       for (const name of [TODAY, TOMORROW]) {

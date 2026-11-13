@@ -120,10 +120,17 @@ const fmt = (v, d = 2) => Number(v).toFixed(d);
 const num = v => v.toLocaleString('en-US');
 
 /** One column of a train or selection set from lab-rows.json, by column name. */
+// Calls fn whenever the page switches between the dark and light theme (the page owns the button);
+// returns the function that stops listening, for the step's dispose.
+function onTheme(fn) {
+  const obs = new MutationObserver(fn);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return () => obs.disconnect();
+}
 const rowCol = (set, name) => set.rows.map((r) => r[set.cols.indexOf(name)]);
 
 export {
   sigmoid, predict, cost, gradient, descent, zfit, zapply, el, svgPoint, drag, fmt, num, css, rng,
-  sampleDays, powers, fitExact, solve, costClip, drawFit, drawCostBy, tickSlider, rowCol,
+  sampleDays, powers, fitExact, solve, costClip, drawFit, drawCostBy, tickSlider, rowCol, onTheme,
   ICON_AGAIN, ICON_PLAY, ICON_PAUSE, ICON_STEP, ICON_RESET,
 };

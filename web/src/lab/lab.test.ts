@@ -73,9 +73,11 @@ describe('the Lab steps', () => {
 
   it('a step that is left stops: mount returns a function', async () => {
     const mod = await STEPS[0].load();
+    document.body.innerHTML = `<div class="lab ls-1">${mod.html}${mod.mathHtml}</div>`;
     const stop = mod.mount({ load: () => new Promise(() => {}), scope: createScope });
     expect(typeof stop).toBe('function');
     stop();
+    document.body.innerHTML = '';
   });
 });
 

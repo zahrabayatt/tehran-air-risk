@@ -3,7 +3,7 @@
  *
  * Code is read from training/*.py and pipeline/*.py at build time (plugins/code-snippets.ts). Each
  * explanation is keyed by the exact text of its line, indentation included. A line with no entry is
- * shown with a blank explanation. stages.test.ts fails if a key stops matching a line, so editing the
+ * shown with a blank explanation. lab.test.ts fails if a key stops matching a line, so editing the
  * Python cannot leave an explanation attached to the wrong code.
  */
 export const EXPLANATIONS: Record<string, Record<string, string>> = {
@@ -288,4 +288,66 @@ export const EXPLANATIONS: Record<string, Record<string, string>> = {
     "    return float(predict_proba(z, np.array(model[\"weights\"]), model[\"bias\"])[0])": "Apply the saved weights and bias, then the sigmoid: the probability.",
   },
 
+  weather_inputs: {
+    "def weather_inputs(run_frame: pd.DataFrame, run_day: dt.date) -> pd.DataFrame:": "Turns the weather forecast published on issue day D into five numbers per square for tomorrow.",
+    "    \"\"\"Tomorrow's five weather inputs per cell from the 00 UTC run of `run_day`.\"\"\"": "One run only: the ECMWF forecast that starts at 00:00 UTC on day D. Nothing newer is ever used.",
+    "    first = pd.Timestamp(run_day, tz=\"UTC\") + pd.Timedelta(hours=21)": "Tomorrow, in Tehran, begins at 21:00 UTC on day D (00:30 Tehran time on D+1).",
+    "    hours = pd.date_range(first, periods=24, freq=\"h\")           # 21:00 UTC D to 20:00 UTC D+1": "The 24 hourly stamps of tomorrow, from 21:00 UTC on D to 20:00 UTC on D+1.",
+    "    reduce = {\"temperature_2m\": (\"wx_temp\", \"mean\"), \"relative_humidity_2m\": (\"wx_rh\", \"mean\"),": "For each forecast variable: the input it becomes and how its 24 hours are combined. Temperature and humidity are averaged.",
+    "              \"wind_speed_10m\": (\"wx_wind\", \"mean\"), \"precipitation\": (\"wx_precip\", \"sum\"),": "Wind speed is averaged. Rain is added up, because a day's rain is the total, not the average.",
+    "              \"boundary_layer_height\": (\"wx_blh\", \"mean\")}": "The height of the lowest layer of air, which sets how much room smoke and dust have to spread, is averaged.",
+    "    rows = []": "One row per square.",
+    "    for cell_id, one in run_frame.groupby(\"cell_id\", sort=False):": "Visit each square with its own hours.",
+    "        day = one.set_index(\"time_utc\").reindex(hours)           # an absent hour counts as missing": "Line the hours up on tomorrow's 24 stamps. An hour that is absent shows up as missing, never as zero.",
+    "        row = {\"cell_id\": cell_id, \"target_date\": (hours[0] + pd.Timedelta(hours=3)).date(),": "Start the row with the square and the Tehran date being forecast, D+1.",
+    "               \"issued_run_utc\": f\"{run_day}T00:00Z\"}": "Record which run the numbers came from, so the row can be audited.",
+    "        for source, (name, how) in reduce.items():": "Visit each of the five variables.",
+    "            values = day[source]": "Its 24 hourly values.",
+    "            too_few = values.isna().sum() > MAX_MISSING_HOURS    # more than 4 of 24 missing: no value": "With more than 4 of the 24 hours missing, the variable is not trusted for that day.",
+    "            row[name] = np.nan if too_few else getattr(values, how)()": "Then it has no value (never a filled-in one). Otherwise take the mean or the sum.",
+    "        rows.append(row)": "Keep the finished row.",
+    "    return pd.DataFrame(rows, columns=_COLUMNS)": "One table: a row per square, the five inputs as columns.",
+  },
+
+  compute_cost: {
+    "def logistic_cost(f, y) -> float:": "The average logistic loss of the probabilities f against the true labels y, with no penalty.",
+    "    \"\"\"Mean logistic loss of probabilities f against labels y, with no penalty.\"\"\"": "The one-sentence version of the same thing.",
+    "    f = np.asarray(f, dtype=float)": "The probabilities as an array.",
+    "    y = np.asarray(y, dtype=float)": "The labels (0 or 1) as an array.",
+    "    return float(-np.mean(y * np.log(np.maximum(f, EPS))": "For a day that was unhealthy (y = 1) only this term counts. np.maximum keeps the logarithm away from log(0).",
+    "                          + (1 - y) * np.log(np.maximum(1 - f, EPS))))": "For a day that was not unhealthy (y = 0) only this term counts. Then the mean over all days.",
+    "def compute_cost(X, y, w, b, lambda_: float = 0.0) -> float:": "The cost of the weights w and bias b on the days X. With lambda_ = 0 there is no penalty.",
+    "    \"\"\"Logistic cost, with an optional squared penalty on w (not on b).\"\"\"": "The penalty (step 15) is optional and never touches the bias.",
+    "    w = np.asarray(w, dtype=float)": "The weights as an array.",
+    "    m = np.asarray(X).shape[0]": "m is the number of days.",
+    "    return logistic_cost(predict_proba(X, w, b), y) + lambda_ / (2 * m) * float(w @ w)": "Predict every day, take the mean loss, then add the penalty lambda/(2m) times the sum of the squared weights. At lambda = 0 the second part is zero.",
+  },
+
+  gradient_descent: {
+    "def gradient_descent(X, y, w, b, alpha, num_iters, lambda_=0.0):": "Trains the model: start from w and b, and take num_iters small steps of size alpha downhill on the cost.",
+    "    \"\"\"Batch gradient descent. Returns (w, b, J_history).": "Every step uses all the training days (batch). It returns the final weights, the bias and the cost after each step.",
+    "    w = np.array(w, dtype=float)": "A private copy of the weights, so the caller's array is never changed.",
+    "    b = float(b)": "The bias as a plain number.",
+    "    J_history = []": "An empty list for the cost after each step, which is what the cost plot draws.",
+    "    with np.errstate(all=\"ignore\"):": "Keep NumPy quiet when a step overflows. The checks below handle it explicitly.",
+    "        for _ in range(num_iters):": "Repeat the step num_iters times.",
+    "            dj_dw, dj_db = compute_gradient(X, y, w, b, lambda_)": "The slope of the cost with respect to every weight and to the bias, at the current w and b.",
+    "            w_new = w - alpha * dj_dw": "Move each weight a step of size alpha against its slope.",
+    "            b_new = b - alpha * dj_db": "Move the bias the same way.",
+    "            if not (np.all(np.isfinite(w_new)) and np.isfinite(b_new) and np.isfinite(w_new @ w_new)):": "If a weight or the bias blew up, or the sum of squared weights overflowed, alpha was too big (step 11).",
+    "                break": "Stop at once and keep the last good w and b. This happens at either check.",
+    "            cost = compute_cost(X, y, w_new, b_new, lambda_)": "The cost at the new point.",
+    "            if not np.isfinite(cost):": "A cost that is not a number means the same thing.",
+    "            w, b = w_new, b_new": "The step was fine: accept it.",
+    "            J_history.append(cost)": "Write the cost down. The list should go down and flatten.",
+    "    return w, b, J_history": "The trained weights, the bias, and the cost history.",
+  },
+
+  probability_bins: {
+    "def probability_bins(p, y, edges=PROBABILITY_BINS) -> dict:": "Counts the held-out probabilities in ten bins of width 0.1, separately for the days that were unhealthy and the days that were not.",
+    "    p, y = np.asarray(p, dtype=float), np.asarray(y)": "The model's chances and the true labels as arrays.",
+    "    return {\"bins\": list(edges),": "The bin edges: 0.0, 0.1, ... 1.0.",
+    "            \"counts_y1\": np.histogram(p[y == 1], bins=edges)[0].astype(int).tolist(),": "How many unhealthy days fell in each bin. A good model puts them on the right.",
+    "            \"counts_y0\": np.histogram(p[y == 0], bins=edges)[0].astype(int).tolist()}": "How many days that were not unhealthy fell in each bin. A good model puts them on the left.",
+  },
 };

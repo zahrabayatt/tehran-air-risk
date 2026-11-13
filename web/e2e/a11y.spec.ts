@@ -50,20 +50,6 @@ const ROUTES: Route[] = [
     },
   },
 ];
-/** Lab steps that between them show every kind of control, plot, tab and card. */
-const LAB_STEPS = [
-  'Data',
-  'Why not linear regression?',
-  'Decision boundary',
-  'Cost function',
-  'Gradient descent',
-  'Vectorization',
-  'Learning rate',
-  'Feature scaling',
-  'Overfitting and regularization',
-  'Held-out result',
-  'Daily forecast',
-];
 const LAB: Route = ROUTES.find((r) => r.name === 'Model Lab') as Route;
 const WIDTHS = [1280, 390];
 const THEMES = ['dark', 'light'] as const;
@@ -73,7 +59,9 @@ async function open(page: Page, route: Route, theme: (typeof THEMES)[number]) {
   await route.prepare?.(page);
   await page.goto(hash);
   if (theme === 'light') {
-    await page.getByRole('button', { name: 'Switch to light theme' }).click();
+    // The choice is remembered, so a page opened again in the same test is already light.
+    const toLight = page.getByRole('button', { name: 'Switch to light theme' });
+    if (await toLight.count()) await toLight.click();
     await expect(page.locator('.app')).not.toHaveClass(/dark/);
   }
   await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
@@ -110,39 +98,39 @@ for (const route of ROUTES) {
   }
 }
 
+// Every Lab step is different, so each one is checked, with each of its tabs, in both themes at both widths.
+const LAB_STEP_COUNT = 17;
+const stepRoute = (n: number): Route => ({ ...LAB, hash: `#/lab/${n}` });
+const sideScroll = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+
 for (const theme of THEMES) {
   for (const width of WIDTHS) {
     test(`Model Lab steps, ${theme}, ${width}px: no serious or critical accessibility violations in any tab`, async ({ page }) => {
-      test.setTimeout(120_000);
+      test.setTimeout(300_000);
       await page.setViewportSize({ width, height: 900 });
-      await open(page, LAB, theme);
-      await expect(page.getByTestId('plot')).toBeVisible();
-      for (const title of LAB_STEPS) {
-        await page.getByRole('navigation', { name: 'Lab steps' }).getByRole('button', { name: title, exact: true }).click();
-        await expect(page.getByRole('heading', { level: 2, name: title, exact: true })).toBeVisible();
-        for (const tab of ['The math', 'The code', 'scikit-learn']) {
-          await page.getByRole('group', { name: 'Explanation section' }).getByRole('button', { name: tab }).click();
+      for (let n = 1; n <= LAB_STEP_COUNT; n++) {
+        await open(page, stepRoute(n), theme);
+        await expect(page.locator('#main')).toBeAttached();
+        for (const tab of await page.getByRole('tab').allInnerTexts()) {
+          await page.getByRole('tab', { name: tab }).click();
           const results = await new AxeBuilder({ page }).analyze();
           const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
-          const summary = serious.map((v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`);
-          expect(summary, `${title}, ${tab}`).toEqual([]);
+          const summary = serious.map((v) => `${v.id} (${v.impact}): ${v.nodes.map((x) => x.target.join(' ')).join(' | ')}`);
+          expect(summary, `step ${n}, ${tab}`).toEqual([]);
         }
       }
     });
   }
 }
 
-test('Model Lab: no horizontal page scroll at 390px on the long steps, in both themes', async ({ page }) => {
+test('Model Lab: no horizontal page scroll at 390px on any step, in both themes', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize({ width: 390, height: 844 });
   for (const theme of THEMES) {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await open(page, LAB, theme);
-    for (const title of ['Gradient descent', 'Learning rate', 'Held-out result', 'Daily forecast']) {
-      await page.getByRole('navigation', { name: 'Lab steps' }).getByRole('button', { name: title, exact: true }).click();
-      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-        scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
-      }));
-      expect(scrollWidth, `${title}, ${theme}`).toBeLessThanOrEqual(clientWidth);
+    for (let n = 1; n <= LAB_STEP_COUNT; n++) {
+      await open(page, stepRoute(n), theme);
+      expect(await sideScroll(page), `step ${n}, ${theme}`).toBe(false);
     }
   }
 });

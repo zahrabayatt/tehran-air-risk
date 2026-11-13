@@ -5,7 +5,7 @@ export type { Snippet };
 
 /**
  * A code block read from the Python source at build time (plugins/code-snippets.ts). The build
- * fails if a name asked for with lab('name') in src/lab/stages is missing, so this throws
+ * fails if a name asked for with lab('name') in src/lab/steps is missing, so this throws
  * only if a name is built at run time.
  */
 export function lab(name: string): Snippet {

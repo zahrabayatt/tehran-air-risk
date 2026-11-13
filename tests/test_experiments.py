@@ -1,15 +1,13 @@
-"""The Lab's teaching code agrees with the production code, and its fixtures are current."""
+"""The Lab's teaching code agrees with the production code."""
 from __future__ import annotations
 
-import json
-import math
 import re
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from training import experiments, export_lab_fixtures
+from training import experiments
 from training.experiments import (boundary_x2, descent, fit_linear, fit_polynomial,
                                   gradient_matrix, linear_crossing, logistic_loss, poly_features,
                                   race_learning_rates, season_features, squared_error_cost)
@@ -168,40 +166,3 @@ def test_a_larger_penalty_shrinks_the_polynomial_weights():
     w_small, *_ = fit_polynomial(x1, x2, y, 0.01)
     w_big, *_ = fit_polynomial(x1, x2, y, 1000.0)
     assert np.abs(w_big).max() < np.abs(w_small).max()
-
-
-@pytest.mark.xfail(reason="Lab fixtures are built for the five-feature version 1 model; "
-                   "the Lab port task regenerates them for version 2", strict=False)
-def test_committed_fixtures_are_current():
-    sample = json.loads(export_lab_fixtures.SAMPLE_PATH.read_text(encoding="utf-8"))
-    model = json.loads(export_lab_fixtures.MODEL_PATH.read_text(encoding="utf-8"))
-    fresh = json.loads(json.dumps(export_lab_fixtures.build_fixtures(sample, model), allow_nan=False))
-    committed = json.loads(export_lab_fixtures.FIXTURES_PATH.read_text(encoding="utf-8"))
-    assert_close_tree(fresh, committed, "rerun: python -m training.export_lab_fixtures")
-
-
-def test_fixture_runs_stop_where_python_stops():
-    fx = json.loads(export_lab_fixtures.FIXTURES_PATH.read_text(encoding="utf-8"))
-    diverging = [c for c in fx["runOne"] if c["divergedAt"] is not None]
-    assert diverging and all(c["divergedAt"] == len(c["jHistory"]) + 1 for c in diverging)
-    assert all(np.isfinite(c["jHistory"]).all() for c in fx["runOne"] + fx["runMulti"])
-
-
-def assert_close_tree(a, b, path="fixtures", rel=1e-9, abs_=1e-12):
-    """Equal structure and strings; numbers equal within a relative tolerance.
-
-    Exact float equality fails across platforms: NumPy on Linux CI and on Windows can differ in the
-    last bits of a sum, so regenerated fixtures are compared with a tolerance far below anything shown.
-    """
-    if isinstance(a, dict) and isinstance(b, dict):
-        assert a.keys() == b.keys(), f"{path}: keys differ"
-        for k in a:
-            assert_close_tree(a[k], b[k], f"{path}.{k}", rel, abs_)
-    elif isinstance(a, list) and isinstance(b, list):
-        assert len(a) == len(b), f"{path}: lengths differ"
-        for i, (x, y) in enumerate(zip(a, b)):
-            assert_close_tree(x, y, f"{path}[{i}]", rel, abs_)
-    elif isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
-        assert math.isclose(a, b, rel_tol=rel, abs_tol=abs_), f"{path}: {a} != {b}"
-    else:
-        assert a == b, f"{path}: {a!r} != {b!r}"

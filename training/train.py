@@ -71,7 +71,7 @@ ITERATIONS = 10000
 CONVERGED_RELATIVE = 1e-7
 CONVERGENCE_WINDOW = 100
 
-# The spike's result on these exact rows; main() stops before the held-out look if it differs.
+# The spike's result on these exact rows; `--check-spike` stops before the held-out look if it differs.
 SPIKE_CHOICE = ("all_wx", 10.0)
 SPIKE_COST = 0.0869
 
@@ -335,7 +335,15 @@ def train_model(df: pd.DataFrame, candidates=CANDIDATES, alpha: float = ALPHA,
             "held_p": held_p}
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Train the model and write the site's data files.")
+    ap.add_argument("--check-spike", action="store_true",
+                    help="stop before the held-out look if selection differs from the spike's choice "
+                         "(off by default, so later retrains run)")
+    check_spike = ap.parse_args(argv).check_spike
+
     from pipeline.fetch import read_hourly
     from training.export_data import (build_history, build_profile, build_sample,
                                       write_json)
@@ -355,6 +363,7 @@ def main() -> int:
         raise SystemExit("no version 1 model.json to keep as previous")
 
     def guard(records, best):
+        """Opt-in (--check-spike): stop before the held-out look if selection differs from the spike."""
         c = records[best]
         print(f"selection: {c['feature_set']} lambda {c['lambda']:g} cost {c['selection_cost']:.6f}")
         if (c["feature_set"], c["lambda"]) != SPIKE_CHOICE or abs(c["selection_cost"] - SPIKE_COST) > 0.001:
@@ -363,7 +372,7 @@ def main() -> int:
                       f"selection {r['selection_cost']:.6f}{'  <- chosen' if r['chosen'] else ''}")
             raise SystemExit("selection differs from the spike; stopping before the held-out look")
 
-    result = train_model(df, guard=guard)
+    result = train_model(df, guard=guard if check_spike else None)
     model, train = result["model"], result["train"]
     model["previous"] = previous
     model["vectorization"] = time_dot()
@@ -392,7 +401,9 @@ def main() -> int:
     print("sklearn:", model["sklearn_cost"])
     print("runtime_ms:", round(model["runtime_ms"], 1), "vectorization:", model["vectorization"])
     print("sizes:", sizes)
-    return 0
+
+    from training.export_site import main as export_site
+    return export_site()
 
 
 if __name__ == "__main__":

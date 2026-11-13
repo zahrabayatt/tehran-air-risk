@@ -509,3 +509,18 @@ def test_zscore_rejects_nan_sigma():
         zscore_fit(X)
     with pytest.raises(ValueError, match="sigma"):
         zscore_apply(np.ones((2, 2)), np.zeros(2), np.array([1.0, np.nan]))
+
+
+# ---------------------------------------------------------------- weather inputs
+
+def test_weather_columns_pass_the_name_check_and_run_precedes_the_cutoff():
+    from pipeline.weather import WX_FEATURES
+    hourly = make_hourly(days=60)
+    labels = daily_labels(hourly)
+    plain = build_dataset(hourly, labels)
+    wx = plain[["cell_id", "target_date"]].assign(
+        issued_run_utc=[f"{d}T00:00Z" for d in plain["day"]], **{n: 1.0 for n in WX_FEATURES})
+    ds = build_dataset(hourly, labels, weather=wx)
+    banned = ("cams", "next", "target_pm", "label_pm", "mean_pm25")
+    assert not [c for c in ds.columns if any(w in c.lower() for w in banned)]
+    assert (pd.to_datetime(ds["issued_run_utc"]) < ds["cutoff_utc"]).all()

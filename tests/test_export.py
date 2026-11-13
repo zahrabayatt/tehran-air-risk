@@ -121,3 +121,15 @@ def test_committed_profile_lists_the_same_sources_as_the_exporter():
     profile = json.loads((Path(__file__).resolve().parent.parent / "web" / "public" / "data" / "profile.json").read_text(encoding="utf-8"))
     assert profile["sources"] == export_data.SOURCES
     assert "ECMWF" in profile["sources"][1]["attribution"]
+
+
+def test_profile_counts_weather_drops(built):
+    hourly, labels, windows, ds, (train, selection, held) = built
+    parts = {"train": train, "selection": selection, "held_out": held}
+    base = export_data.build_profile(hourly, labels, windows, ds, parts)
+    assert base["rows"]["no_weather_dropped"] == 0
+    assert base["weather_first_target"] == "2024-03-15"
+    with_wx = export_data.build_profile(hourly, labels, windows, ds.iloc[:-7], parts, no_weather_dropped=7)
+    assert with_wx["rows"]["no_weather_dropped"] == 7
+    for k in ("dst_dropped", "incomplete_inputs_dropped"):
+        assert with_wx["rows"][k] == base["rows"][k]

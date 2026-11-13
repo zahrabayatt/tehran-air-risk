@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from pipeline.fetch import POLLUTANTS, WEATHER
+from pipeline.weather import WX_FEATURES  # noqa: F401  (re-exported: the five tomorrow-weather inputs)
 from training.labels import TEHRAN
 
 # The ten hourly columns that feed the features, in the order the helpers below index them.
@@ -174,16 +175,35 @@ def labelled_windows(hourly: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame
     return out.sort_values(["cell_id", "day"]).reset_index(drop=True)[AUDIT_COLUMNS + FEATURES + ["y"]]
 
 
-def build_dataset(hourly: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
+def build_dataset(hourly: pd.DataFrame, labels: pd.DataFrame,
+                  weather: pd.DataFrame | None = None) -> pd.DataFrame:
     """One row per (cell, D) with a complete window, a label for D+1, and D on +03:30.
 
     `labels` is the output of daily_labels (cell_id, date, y, ...). Columns: AUDIT_COLUMNS,
     then FEATURES, then y (int64). Sorted by cell then day; the values equal build_row's.
+
+    With `weather` (pipeline.weather.weather_inputs rows, `target_date` a date) the rows are
+    inner-joined on (cell_id, target_date), rows with any NaN in WX_FEATURES are dropped (never
+    filled), and the columns become AUDIT_COLUMNS, `issued_run_utc` (audit), FEATURES,
+    WX_FEATURES, y. Without it the frame is exactly the one above.
     """
     out = labelled_windows(hourly, labels)
     if out.empty:
+        if weather is not None:
+            return out.assign(issued_run_utc=pd.Series(dtype=object),
+                              **{n: pd.Series(dtype=float) for n in WX_FEATURES})[
+                AUDIT_COLUMNS + ["issued_run_utc"] + FEATURES + WX_FEATURES + ["y"]]
         return out
-    return out[_issuable(out["day"])].reset_index(drop=True)
+    out = out[_issuable(out["day"])].reset_index(drop=True)
+    if weather is None:
+        return out
+    if weather.duplicated(["cell_id", "target_date"]).any():
+        raise ValueError("weather has duplicate (cell_id, target_date) pairs")
+    wx = weather[["cell_id", "target_date", "issued_run_utc", *WX_FEATURES]]
+    out = out.merge(wx, on=["cell_id", "target_date"], how="inner")
+    out = out.dropna(subset=WX_FEATURES)
+    out = out.sort_values(["cell_id", "day"]).reset_index(drop=True)
+    return out[AUDIT_COLUMNS + ["issued_run_utc"] + FEATURES + WX_FEATURES + ["y"]]
 
 
 # lab:split_by_time

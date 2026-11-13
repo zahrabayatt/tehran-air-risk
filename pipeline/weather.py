@@ -94,6 +94,13 @@ def weather_inputs(run_frame: pd.DataFrame, run_day: dt.date) -> pd.DataFrame:
 # endlab
 
 
+def read_weather(path) -> pd.DataFrame:
+    """The CLI's CSV as `weather_inputs` returns it, with `target_date` a `datetime.date` again."""
+    out = pd.read_csv(path)
+    out["target_date"] = [d.date() for d in pd.to_datetime(out["target_date"])]
+    return out
+
+
 def _frame_from_record(rec: dict) -> pd.DataFrame | None:
     """A cached run as a frame, or None when the cached answer is that the API lacks the run."""
     data = rec["data"]

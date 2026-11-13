@@ -24,6 +24,7 @@ from training.labels import MIN_HOURS, THRESHOLD
 
 # West Tehran is the one cell where both classes are common (46% of days above the threshold
 # over the whole history; the other cells are mostly below 15%), so a year of it shows both.
+WEATHER_FIRST_TARGET = "2024-03-15"   # the first run is 2024-03-14, so the first target day
 SAMPLE_CELL = "west-tehran"
 SAMPLE_DAYS = 365
 _NAMES = {c["id"]: c["name"] for c in CELLS}
@@ -150,7 +151,8 @@ def _missing(hourly: pd.DataFrame) -> tuple[dict, dict]:
 
 
 def build_profile(hourly: pd.DataFrame, labels: pd.DataFrame, windows: pd.DataFrame,
-                  dataset: pd.DataFrame, splits: dict[str, pd.DataFrame]) -> dict:
+                  dataset: pd.DataFrame, splits: dict[str, pd.DataFrame],
+                  no_weather_dropped: int = 0) -> dict:
     """Facts for the Data page. Aggregates only, no row-level values."""
     missing, per_cell_missing = _missing(hourly)
     # Labelled target dates whose issue day D and target day D+1 are both on +03:30: each could
@@ -178,12 +180,14 @@ def build_profile(hourly: pd.DataFrame, labels: pd.DataFrame, windows: pd.DataFr
         "cutoff_utc": f"{int(CUTOFF.total_seconds() // 3600):02d}:{int(CUTOFF.total_seconds() % 3600 // 60):02d}",
         "hourly_range": {"start": str(times.min()), "end": str(times.max())},
         "labelled_range": {"start": str(dates.min().date()), "end": str(dates.max().date())},
+        "weather_first_target": WEATHER_FIRST_TARGET,
         "cell_count": len(cells),
         "usable_cell_days": int(len(labels)),
         "missing_hours": {k: (_r(v, 6) if isinstance(v, float) else int(v)) for k, v in missing.items()},
         "rows": {"labelled_windows": int(len(windows)),
-                 "dst_dropped": int(len(windows) - len(dataset)),
-                 "incomplete_inputs_dropped": int(issuable.sum() - len(dataset)),
+                 "dst_dropped": int(len(windows) - len(dataset) - no_weather_dropped),
+                 "incomplete_inputs_dropped": int(issuable.sum() - len(dataset) - no_weather_dropped),
+                 "no_weather_dropped": int(no_weather_dropped),
                  "dataset": int(len(dataset))},
         "splits": {name: {"rows": int(len(part)),
                           "start": str(min(part["target_date"])),

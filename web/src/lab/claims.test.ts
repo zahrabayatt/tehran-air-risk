@@ -399,12 +399,12 @@ describe('Held-out step: the selection-set limit', () => {
 });
 
 describe('Daily schedule', () => {
-  it('the Lab shows the one schedule constant, 13:30 UTC, with Tehran time derived from it', () => {
-    expect(DAILY_RUN_UTC).toBe('13:30');
-    expect(DAILY_RUN_TEHRAN).toBe('17:00');
+  it('the Lab shows the one schedule constant, the first try at 10:30 UTC, with Tehran time derived from it', () => {
+    expect(DAILY_RUN_UTC).toBe('10:30');
+    expect(DAILY_RUN_TEHRAN).toBe('14:00');
     const pipelineText = pipeline(ctx, {} as never).texts.map((t) => t.t).join(' ');
-    expect(pipelineText).toContain(`${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran)`);
+    expect(pipelineText).toContain(`First try ${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran), up to four a day`);
     const stats = stage('Daily forecast').stats(ctx, {} as never);
-    expect(stats.find((r) => r.k === 'Scheduled')?.v).toBe(`${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran)`);
+    expect(stats.find((r) => r.k === 'Scheduled')?.v).toBe(`First try ${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran), up to four a day`);
   });
 });

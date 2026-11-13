@@ -125,3 +125,13 @@ def test_readme_and_data_card_numbers_match_the_profile():
 
 def test_daily_cron_tries_four_times():
     assert "cron: '30 10,12,14,16 * * *'" in read(".github/workflows/daily.yml")
+
+
+def test_a_day_with_no_row_is_documented_and_availability_figures_are_dated():
+    daily = read(".github/workflows/daily.yml")
+    for text in (daily, read("docs/DATA_PROFILE.md")):
+        assert "no row" in text and "backfill" in text
+    for text in (daily, read("README.md")):
+        assert "2026-11-12" in text and "2026-11-04" in text and "2026-11-03" in text
+    profile = read("docs/DATA_PROFILE.md")
+    assert "2026-11-12" in profile and "10.1 hours" in profile and "9.7 hours" in profile

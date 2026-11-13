@@ -712,9 +712,15 @@ def stage_profile():
         "`data/raw/verify_weather.json` and read by this generator. "
         f"{WX_RUN_DELAY_H_SECOND} h after 00 UTC (about {WX_RUN_AVAILABLE_SECOND} UTC): the check of {WX_RUN_SECOND_DATE}, recorded in the design notes and not saved under `data/raw`. "
         "The run is therefore published about 6.4 to 6.8 hours after 00 UTC, well before the cutoff and before the first daily try at 10:30 UTC. Two observations are not a guarantee.")
+    add(f"- **CAMS availability, for comparison:** the 00 UTC CAMS run was available at 10:06 UTC, 10.1 hours after it starts, in Open-Meteo's run metadata checked {WX_RUN_SECOND_DATE} "
+        "(recorded in the design notes, not saved under `data/raw`); the check of 2026-11-04 measured 9.7 hours (`data/raw/cams_meta_2026-11-04.json`, see \"CAMS run availability\" above). "
+        "Each is one observation. The first daily try at 10:30 UTC follows the later figure by about 24 minutes.")
     add("- **Daily tries:** 10:30, 12:30, 14:30 and 16:30 UTC. A forecast is saved only when both the CAMS and the ECMWF run are ready, and a saved forecast is never changed. "
         "A run the API does not hold yet (HTTP 400) counts as not ready, never as a gap, until the last try of the day. "
-        "This replaces the single 13:30 UTC time chosen in \"Live vs history\" above, which was based on the CAMS run alone.")
+        "This replaces the single 13:30 UTC time chosen in \"Live vs history\" above, which was based on the CAMS run alone. "
+        "A gap is recorded only by a final try (the 16:30 UTC run, or any run from 21:00 Tehran time). If that run is dropped by GitHub or cancelled "
+        "(a queued run replaces an older pending one even with `cancel-in-progress: false`, so a manual dispatch can displace it), no row is written for the day: "
+        "a day with no row means no forecast was recorded, and the next day's tries do not backfill it.")
     add("- **Target day:** run hours 21 to 44 (21:00 UTC on D to 20:00 UTC on D+1), 24 hours. Reductions: `wx_temp`, `wx_rh`, `wx_wind`, `wx_blh` are means, "
         "`wx_precip` is a sum. A variable with more than 4 missing hours of the 24 is missing (NaN, never filled).")
     add("- **First run:** 2024-03-14 (first target day 2024-03-15). The API refuses earlier runs (\"requested model run is not available\"). "

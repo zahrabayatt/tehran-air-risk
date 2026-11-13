@@ -133,7 +133,7 @@ export const pipeline: ViewFn = () => {
     p.texts.push({ x: x + 48, y: 195, t, anchor: 'middle', size: 13 });
     if (i < 5) p.lines.push(ln(`M${x + 96} 190 L${x + 110} 190`, { stroke: INK, width: 1.5 }));
   });
-  p.texts.push({ x: 360, y: 130, t: `Every day at ${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran)`, anchor: 'middle', size: 15 });
+  p.texts.push({ x: 360, y: 130, t: `First try ${DAILY_RUN_UTC} UTC (${DAILY_RUN_TEHRAN} Tehran), up to four a day`, anchor: 'middle', size: 15 });
   p.legend = ['A failed fetch records a gap and never invents a value', 'The model is frozen: the job applies it and never retrains it'];
   return p;
 };

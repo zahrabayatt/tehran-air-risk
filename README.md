@@ -33,7 +33,7 @@ The full reading is in [`docs/DATA_CARD.md`](docs/DATA_CARD.md).
 
 ## How the daily forecast works
 
-A scheduled GitHub Actions workflow ([`.github/workflows/daily.yml`](.github/workflows/daily.yml)) tries four times a day, at 10:30, 12:30, 14:30 and 16:30 UTC (14:00 to 20:00 in Tehran, all after the 12:00 Tehran cutoff). Open-Meteo's metadata shows the CAMS 00 UTC run is ready about 10:06 UTC and the ECMWF 00 UTC run about 06:24 UTC:
+A scheduled GitHub Actions workflow ([`.github/workflows/daily.yml`](.github/workflows/daily.yml)) tries four times a day, at 10:30, 12:30, 14:30 and 16:30 UTC (14:00 to 20:00 in Tehran, all after the 12:00 Tehran cutoff). In Open-Meteo's run metadata (checked 2026-11-12) the CAMS 00 UTC run was available at 10:06 UTC, 10.1 hours after it starts (the 2026-11-04 check measured 9.7 hours), and the ECMWF 00 UTC run about 06:24 UTC, 6.4 hours after (the 2026-11-03 check measured 6.8 hours). Each is one observation. A day for which no run recorded a forecast or a gap has no row, and later days do not backfill it:
 
 1. It fetches today's hourly values for all twelve squares, builds the model's inputs from the 12 hours up to the cutoff only, and adds tomorrow's weather from the ECMWF 00 UTC run. The target date comes from Tehran time inside the script, never from the runner's clock.
 2. The one **frozen** model (`model/model.json`) gives each square a probability for tomorrow. Retraining is a deliberate manual step, never part of the daily run.

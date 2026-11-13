@@ -103,3 +103,38 @@ test('Lab step 4 moves g(z) when z is dragged', async ({ page }) => {
   await expect(page.locator('#zv')).not.toHaveText('1.5');
   await expect(page.locator('#p')).toContainText('g(');
 });
+
+test('Lab step 5 chips give the four costs', async ({ page }) => {
+  await page.goto('#/lab/5');
+  const note = page.locator('#pnote');
+  for (const [name, cost] of [['Flat curve', '0.2558'], ['Too steep', '0.2115'], ['Shifted right', '0.3340'], ['The best', '0.1614']] as const) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect(note).toContainText(`Cost ${cost}`);
+  }
+});
+
+test('Lab step 6 chips move the switch point and the counts follow', async ({ page }) => {
+  await page.goto('#/lab/6');
+  await expect(page.locator('#p')).toContainText('Tomorrow');
+  await expect(page.locator('figcaption')).toContainText('Right of the line');
+  await page.getByRole('button', { name: 'Switch at 1 in 2' }).click();
+  await expect(page.locator('#pnote')).toContainText('calls 187 days unhealthy');
+  await expect(page.locator('#pnote')).toContainText('misses 204');
+  await page.getByRole('button', { name: 'Catch more bad days' }).click();
+  await expect(page.locator('#pnote')).toContainText('misses only 132');
+  await page.getByRole('button', { name: 'Fewer false alarms' }).click();
+  await expect(page.locator('#pnote')).toContainText('Only 3 false alarms');
+});
+
+test('Lab step 7 compares the slopes of the two costs', async ({ page }) => {
+  await page.goto('#/lab/7');
+  await expect(page.locator('#co')).toContainText('11 times');
+  await expect(page.locator('#kv')).toContainText('squared error');
+});
+
+test('Lab step 8 shows the loss for one day and the cost over all days', async ({ page }) => {
+  await page.goto('#/lab/8');
+  await expect(page.locator('#kv')).toContainText('0.1614');
+  await page.getByRole('button', { name: /Tomorrow was OK/ }).click();
+  await expect(page.locator('#kv')).toContainText('OK, y = 0');
+});

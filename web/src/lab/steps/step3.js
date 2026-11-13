@@ -51,6 +51,7 @@ export function mount(ctx) {
   const off = [];
 
   function redraw() {
+    if (!X.length) return;
     const svg = $('p');
     svg.innerHTML = '';
     const xs = extra ? X.concat(Array.from({ length: 60 }, (_, i) => 200 + i * 1.7)) : X,

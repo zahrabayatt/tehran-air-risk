@@ -95,9 +95,7 @@ Open-Meteo's free tier is for non-commercial use, so the site has no ads or subs
 
 This project follows **Course 1 of the Machine Learning Specialization** (Supervised Machine Learning: Regression and Classification), the logistic regression part: classification, the sigmoid, the decision boundary, the logistic loss and cost, gradient descent, vectorization, learning rate, feature scaling, feature engineering, overfitting and regularization. The linear regression half is a separate project, `tehran-house-price`.
 
-Out of scope, because they are not part of what this project covers: Accuracy, Precision, Recall, F1-score, Confusion matrix, ROC-AUC, decision threshold analysis, and named error metrics such as MSE, RMSE and MAE. The decision threshold on the probability is fixed at 0.5. A test (`tests/test_scope.py`) fails if these names appear anywhere in the site source, the training and pipeline code, the exported data or the docs. Only two things are exempt: the one line in this README, the progress tracker and the project spec that says the names are out of scope, and the site's own test files, which hold the list so they can check that no page shows it.
-
-[`docs/LEARNING_PROGRESS_TRACKER.md`](docs/LEARNING_PROGRESS_TRACKER.md) records which concepts are implemented and where.
+Out of scope, because they are not part of what this project covers: Accuracy, Precision, Recall, F1-score, Confusion matrix, ROC-AUC, decision threshold analysis, and named error metrics such as MSE, RMSE and MAE. The decision threshold on the probability is fixed at 0.5. A test (`tests/test_scope.py`) fails if these names appear anywhere in the site source, the training and pipeline code, the exported data or the docs. Only two things are exempt: the one line in this README that says the names are out of scope, and the site's own test files, which hold the list so they can check that no page shows it.
 
 ## Repository
 
@@ -108,7 +106,7 @@ tests/      Python tests
 model/      model.json, the trained model
 data/       predictions.json (the daily forecasts); raw data is git-ignored
 web/        the site (Vite, React, TypeScript)
-docs/       project spec, learning notes, data card, data profile, changelog, progress tracker
+docs/       data card, data profile, changelog
 ```
 
 ## License

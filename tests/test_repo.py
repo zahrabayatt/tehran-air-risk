@@ -11,11 +11,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED = [
     "README.md",
-    "docs/PROJECT_SPEC.md",
-    "docs/LEARNING_NOTES.md",
     "docs/DATA_CARD.md",
     "docs/CHANGELOG.md",
-    "docs/LEARNING_PROGRESS_TRACKER.md",
     ".github/workflows/ci.yml",
     ".github/workflows/pages.yml",
 ]
@@ -84,32 +81,14 @@ def test_every_deploy_shares_one_pages_concurrency_group_that_never_cancels():
     assert re.search(r"^concurrency:\s*\n\s+group: daily-forecast", daily, re.MULTILINE)
 
 
-def test_tracker_and_changelog():
-    tracker = read("docs/LEARNING_PROGRESS_TRACKER.md")
-    assert "tehran-air-risk" in tracker
-    assert "2026-11-03" in tracker
+def test_changelog():
     assert re.search(r"1\.0\.0.*2026-11-0[34]", read("docs/CHANGELOG.md"))
 
 
-def test_tracker_marks_only_implemented_concepts():
-    """Every concept marked done names code that exists in the repository."""
-    rows = [line for line in read("docs/LEARNING_PROGRESS_TRACKER.md").splitlines() if "[x]" in line and "|" in line]
-    assert len(rows) >= 8
-    for row in rows:
-        paths = re.findall(r"`((?:training|pipeline|web/src)/[\w./-]+?\.(?:py|ts|tsx))`", row)
-        assert paths, f"no code path in: {row[:60]}"
-        for p in paths:
-            assert (ROOT / p).is_file(), f"{p} named in the tracker does not exist"
-
-
-def test_learning_notes_leave_the_authors_words_empty():
-    notes = read("docs/LEARNING_NOTES.md")
-    sections = re.split(r"^## ", notes, flags=re.MULTILINE)[1:]
-    assert len(sections) >= 10
-    for s in sections:
-        assert "### In my own words" in s, s.splitlines()[0]
-        after = s.split("### In my own words", 1)[1].strip()
-        assert after == "", f"{s.splitlines()[0]}: the author's section must stay empty"
+def test_private_notes_stay_out_of_the_repo():
+    """The spec, study notes and progress tracker are kept outside this public repository."""
+    for name in ["PROJECT_SPEC.md", "LEARNING_NOTES.md", "LEARNING_PROGRESS_TRACKER.md"]:
+        assert not (ROOT / "docs" / name).exists(), name
 
 
 def test_readme_states_the_result_in_model_json():

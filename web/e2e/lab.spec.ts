@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { GITHUB_URL } from '../src/config';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const TITLES = [
   'Data',
@@ -137,4 +139,41 @@ test('Lab step 8 shows the loss for one day and the cost over all days', async (
   await expect(page.locator('#kv')).toContainText('0.1614');
   await page.getByRole('button', { name: /Tomorrow was OK/ }).click();
   await expect(page.locator('#kv')).toContainText('OK, y = 0');
+});
+
+test('Lab step 9 trains by gradient descent to the best possible cost', async ({ page }) => {
+  await page.goto('#/lab/9');
+  const choices = page.locator('#aseg button');
+  await expect(choices).toHaveText(['0.1', '1', '3', '20', 'Custom']);
+  await page.locator('#scrub').fill('300');
+  await expect(page.locator('#status')).toContainText('Converged at step 42');
+  await expect(page.locator('#hist')).toContainText('best possible cost: 0.1614');
+});
+
+test('Lab step 10 shows all 19 inputs and the loop against the dot product', async ({ page }) => {
+  const today = JSON.parse(readFileSync(join(process.cwd(), 'public/data/lab-today.json'), 'utf8'));
+  await page.goto('#/lab/10');
+  await expect(page.locator('#xc .cell')).toHaveCount(today.features.length);
+  expect(today.features.length).toBe(19);
+  const times = Math.round(today.vec.loop_ms / today.vec.numpy_ms);
+  await expect(page.locator('#race')).toContainText(`${times}×`);
+  await page.getByRole('button', { name: /Dot product/ }).click();
+  await page.locator('#go').click();
+  await expect(page.locator('#sumNote')).toContainText(`about ${Math.round(today.p * 10)} in 10`, { timeout: 5000 });
+});
+
+test('Lab step 11 races four learning rates and flags the one that goes up', async ({ page }) => {
+  await page.goto('#/lab/11');
+  await expect(page.locator('#lanes button')).toHaveCount(4);
+  await page.locator('#scrub').fill('300');
+  await expect(page.locator('#board')).toContainText('cost went up at step 3');
+  await expect(page.locator('#stk')).toHaveText('300');
+});
+
+test('Lab step 12 compares scaled and raw inputs', async ({ page }) => {
+  await page.goto('#/lab/12');
+  await expect(page.locator('#araw')).toHaveText('0.00005');
+  await page.locator('#scrub').fill('1000');
+  await expect(page.locator('#rcS')).toContainText('Within 1% of the best since step 180');
+  await expect(page.locator('#verdict')).toContainText('Scaled');
 });

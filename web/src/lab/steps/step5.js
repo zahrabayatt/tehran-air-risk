@@ -29,13 +29,22 @@ export const mathHtml = `<div class="mrow" tabindex="0"><span id="m1"></span><p>
 
 export const skHtml = '';
 
-// Presets: [w, b, note]. The note is finished with the live cost.
+// Presets: [w, b, note]. The note is finished with the live cost. The flat preset's b and the figures in
+// the notes come from the training days (filled in by setPresets once they are loaded).
 const PRE = {
-  flat: [0, -2.56, 'Flat curve: w = 0, so every day gets the same chance, 7%, whatever the morning air. That is the share of unhealthy days in training.'],
+  flat: [0, 0, ''],
   steep: [0.3, -12, 'Too steep: the chance jumps from almost 0 to almost 1 around 40 μg/m³. Every unhealthy day below that, and every OK day above it, now costs a lot.'],
-  right: [0.134, -10, 'Shifted right: the best steepness, but b moves the switch to about 75 μg/m³, so the 157 unhealthy days that followed mornings between 40 and 75 μg/m³ get a low chance.'],
+  right: [0.134, -10, ''],
   best: [null, null, 'The best: the w and b with the lowest cost, found by gradient descent (step 9).'],
 };
+
+function setPresets(X, Y) {
+  const share = Y.reduce((s, v) => s + v, 0) / Y.length;
+  const hidden = X.filter((v, i) => Y[i] === 1 && v >= 40 && v <= 75).length;
+  PRE.flat[1] = Math.log(share / (1 - share));
+  PRE.flat[2] = `Flat curve: w = 0, so every day gets the same chance, ${Math.round(share * 100)}%, whatever the morning air. That is the share of unhealthy days in training.`;
+  PRE.right[2] = `Shifted right: the best steepness, but b moves the switch to about 75 μg/m³, so the ${hidden} unhealthy days that followed mornings between 40 and 75 μg/m³ get a low chance.`;
+}
 
 /** Runs the step. `ctx.load(name)` gives its data; the returned function stops everything it started. */
 export function mount(ctx) {
@@ -142,6 +151,7 @@ export function mount(ctx) {
     if (!live) return;
     X = rowCol(R.train, 'pm2_5_mean');
     Y = rowCol(R.train, 'y');
+    setPresets(X, Y);
     sel = X.findIndex((v, i) => v > 45 && Y[i] === 1);
     const main = $('main');
     main.classList.remove('skel');

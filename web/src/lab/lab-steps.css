@@ -1103,7 +1103,7 @@
 .lab .ls-12 .alph em {
   font-style:normal;
   font-family:'Geist',sans-serif;
-  opacity:.75;
+  opacity:1;
   margin-left:4px;
 }
 .lab .ls-12 .race {
@@ -1117,7 +1117,7 @@
   padding:14px 16px;
   border-left:5px solid var(--c);
 }
-.lab .ls-12 .rc .t {
+.lab .ls-12 .rc .rt {
   display:flex;
   justify-content:space-between;
   align-items:baseline;
@@ -1125,7 +1125,7 @@
   font-size:14px;
   color:var(--mut);
 }
-.lab .ls-12 .rc .t b {
+.lab .ls-12 .rc .rt b {
   color:var(--c);
   font-size:15px;
 }

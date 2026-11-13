@@ -25,7 +25,7 @@
   --c2: #5fd8ab;
   --c3: #ff7b7b;
   --c4: #f5c451;
-  --bad: var(--bad);
+  --bad: #e25b5b;
 }
 
 /* A step sets --c inline on the elements that use it; this is the fallback. */

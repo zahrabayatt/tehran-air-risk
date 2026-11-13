@@ -146,4 +146,10 @@ describe('Lab colours', () => {
     const defined = new Set([...css.matchAll(/--([a-z0-9-]+)\s*:/g), ...steps.matchAll(/--([a-z0-9-]+)\s*:/g)].map((m) => m[1]));
     expect([...used].filter((v) => !defined.has(v))).toEqual([]);
   });
+
+  it('no colour token is defined as var() of itself, which would make it invalid', () => {
+    const css = readFileSync(resolve(__dirname, 'lab-steps.css'), 'utf8') + readFileSync(resolve(__dirname, '../pages/lab.css'), 'utf8');
+    const selfRef = [...css.matchAll(/--([a-z0-9-]+)\s*:\s*var\(--([a-z0-9-]+)\)/g)].filter((m) => m[1] === m[2]).map((m) => m[1]);
+    expect(selfRef).toEqual([]);
+  });
 });

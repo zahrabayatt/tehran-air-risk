@@ -184,6 +184,18 @@ Open-Meteo publishes the state of the `cams_global` air-quality domain at `https
 
 The daily workflow therefore runs at 13:30 UTC (17:00 Tehran). That is about 3.8 hours after the 00 UTC run was available on the day measured, so the day's 00 UTC run is in hand with room to spare, and 13:30 to 13:36 UTC is the window in which the live inputs were compared with the history above and found identical. An earlier choice of 10:00 UTC would have left only about 17 minutes after the availability seen here, and was never compared against the history. A later or slower CAMS run than the one observed would still have to arrive more than 3.8 hours late to matter. The observation says nothing about days with a delayed run; a run whose inputs are not yet published records gaps rather than inventing values.
 
+## Weather forecast runs
+
+Version 2 uses tomorrow's weather as forecast, which supersedes the "today's weather only" decision above.
+
+- **Source:** Open-Meteo Single Runs API, `https://single-runs-api.open-meteo.com/v1/forecast`, `models=ecmwf_ifs` (ECMWF IFS), `timezone=GMT`, `forecast_hours=48`, hourly `temperature_2m`, `relative_humidity_2m`, `wind_speed_10m`, `precipitation`, `boundary_layer_height`. One request per run day covers all 12 cell centres (`pipeline/weather.py`).
+- **Run hour:** the 00 UTC run of the issue day D, `run=<D>T00:00`. It is the only run in hand at the 08:00 UTC cutoff.
+- **Availability:** measured 6.4 h after 00 UTC (one observation of the run metadata), so the run is published well before the cutoff and long before the daily tries from 10:30 UTC.
+- **Target day:** run hours 21 to 44 (21:00 UTC on D to 20:00 UTC on D+1), 24 hours. Reductions: `wx_temp`, `wx_rh`, `wx_wind`, `wx_blh` are means, `wx_precip` is a sum. A variable with more than 4 missing hours of the 24 is missing (NaN, never filled).
+- **First run:** 2024-03-14 (first target day 2024-03-15). The API refuses earlier runs ("requested model run is not available"). Training rows without all five weather inputs are dropped for every candidate alike.
+- **Why Single Runs:** the Historical Forecast API is not an as-issued archive: it joins the first hours of each run into one near-analysis series, so it shows what the weather was, not what was forecast. The Previous Runs API (`previous_day1`) mixes runs through the day, has a short and patchy archive for `ecmwf_ifs` (first populated 2025-10-01) and never has boundary layer height. Only a Single Run reproduces the exact forecast that was in hand on issue day, boundary layer height included.
+- **Cache:** the history build stores one JSON per run under `data/raw/weather_cache/` (git-ignored) and resumes from it; a run the API refuses is recorded as an error and listed in the build's output.
+
 ## Reproduce
 
 ```

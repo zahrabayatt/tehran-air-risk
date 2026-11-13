@@ -11,6 +11,8 @@
     "noFallthroughCasesInSwitch": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": false,
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["vite/client", "node"]

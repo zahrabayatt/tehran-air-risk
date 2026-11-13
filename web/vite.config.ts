@@ -22,7 +22,7 @@ function buildCommit(): string {
 export default defineConfig({
   base: '/tehran-air-risk/',
   define: { __COMMIT__: JSON.stringify(buildCommit()) },
-  plugins: [react(), codeSnippets({ sourceDirs: ['../training', '../pipeline'], stagesDir: 'src/lab/stages' })],
+  plugins: [react(), codeSnippets({ sourceDirs: ['../training', '../pipeline'], stagesDir: 'src/lab/steps' })],
   test: {
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],

@@ -22,7 +22,7 @@ for (const r of ROUTES) {
 }
 
 test('every page sets its own document title', async ({ page }) => {
-  for (const [hash, title] of [['#/', 'Tehran Air Risk: Forecast'], ['#/lab', 'Tehran Air Risk: Model Lab'], ['#/data', 'Tehran Air Risk: Data']]) {
+  for (const [hash, title] of [['#/', 'Tehran Air Risk: Forecast'], ['#/lab', 'Tehran Air Risk: Model Lab, Data'], ['#/data', 'Tehran Air Risk: Data']]) {
     await page.goto(hash);
     await expect(page).toHaveTitle(title);
   }

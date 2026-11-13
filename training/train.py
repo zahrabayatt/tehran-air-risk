@@ -182,6 +182,7 @@ def baseline_costs(baselines: dict, df: pd.DataFrame) -> dict:
 
 # --- held-out views and comparisons --------------------------------------------
 
+# lab:probability_bins
 def probability_bins(p, y, edges=PROBABILITY_BINS) -> dict:
     """Counts of held-out probabilities in ten bins, split by the true label.
 
@@ -191,6 +192,7 @@ def probability_bins(p, y, edges=PROBABILITY_BINS) -> dict:
     return {"bins": list(edges),
             "counts_y1": np.histogram(p[y == 1], bins=edges)[0].astype(int).tolist(),
             "counts_y0": np.histogram(p[y == 0], bins=edges)[0].astype(int).tolist()}
+# endlab
 
 
 def sklearn_comparison(fit: dict, train: pd.DataFrame, held: pd.DataFrame) -> dict:

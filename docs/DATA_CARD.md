@@ -6,7 +6,7 @@ The dataset behind the Tehran Air Risk model: hourly modeled air quality for twe
 - **The values are modeled, not station measurements.** Nothing here comes directly from a monitoring station in Tehran.
 - **Resolution:** the model grid is 0.4 degrees, about 44 km north to south and about 36 km east to west at Tehran's latitude: about 44 by 36 km. The map uses a 12-cell grid. Every place inside a cell shares one value.
 - **Period:** 2022-08-04 to 2026-11-02, 1,552 days per cell.
-- **Weather** (candidate inputs only): Open-Meteo Historical Forecast API, `models=ecmwf_ifs`, CC-BY 4.0, credit Open-Meteo and ECMWF (IFS open data).
+- **Weather:** version 1 used today's weather as candidate inputs (Open-Meteo Historical Forecast API, `models=ecmwf_ifs`). Version 2 adds tomorrow's forecast from the ECMWF IFS 00 UTC run of the issue day, through Open-Meteo's Single Runs API. CC-BY 4.0, credit Open-Meteo and ECMWF (IFS open data).
 - **City outline** on the Forecast map: © OpenStreetMap contributors, ODbL.
 
 ## The grid
@@ -25,7 +25,7 @@ A cell-day is **positive (class 1)** when the Tehran calendar-day mean PM2.5 is 
 
 Each row is one cell and one issue day D, predicting the label of D+1. The inputs are the 12 hourly values stamped from 21:00 UTC on D-1 to 08:00 UTC on D, which is everything up to the 12:00 Tehran cutoff (08:30 UTC). Nothing stamped at or after 09:00 UTC on D reaches a row; tests change late values and check that the row stays the same. The fourteen candidate features are, for each of PM2.5, PM10, NO2, SO2, CO, O3, and temperature, humidity and wind speed, the mean over the window, plus the window's total precipitation, the highest and the latest hourly PM2.5, and the sine and cosine of the target date's day of year. CAMS's own forecast for tomorrow is deliberately never an input. A row needs all 12 hours of all 10 inputs; nothing is imputed.
 
-The deployed model uses five of the fourteen: `pm2_5_mean`, `pm2_5_max`, `pm2_5_last`, `season_sin`, `season_cos`.
+Version 1's deployed model used five of the fourteen (version 2 is described under "Version 2: tomorrow's weather"): `pm2_5_mean`, `pm2_5_max`, `pm2_5_last`, `season_sin`, `season_cos`.
 
 ## From labelled days to model rows
 
@@ -96,7 +96,57 @@ These rates use **all labelled days**, including the selection and held-out peri
 
 The rate changes a lot between years, and part of that may come from changes in the CAMS model, not only the air, so the history should be read with care. The 46.1% in the design notes is West Tehran alone, not the pooled grid; the site and baselines use the pooled 7.0%.
 
-## Model and result
+## Version 2: tomorrow's weather
+
+Version 2 adds five inputs taken from the ECMWF IFS weather forecast that was issued at 00:00 UTC on the issue day D, for the hours of D+1 (21:00 UTC on D to 20:00 UTC on D+1, 24 hours): the mean temperature (`wx_temp`), the mean relative humidity (`wx_rh`), the mean wind speed (`wx_wind`), the total precipitation (`wx_precip`) and the mean boundary layer height (`wx_blh`). A variable with more than 4 missing hours counts as missing. The forecasts come from Open-Meteo's Single Runs API (`models=ecmwf_ifs`, one run per day), and the runs start on 2024-03-14, so the first target day is 2024-03-15.
+
+Every candidate is trained on the same rows: the ones that have all five weather inputs. That removes 6,480 of the 18,024 rows, leaving 11,544, and none of them is filled in.
+
+| Part | Rows | From | To | Unhealthy days |
+|---|---|---|---|---|
+| Training | 4,968 | 2024-03-15 | 2025-05-02 | 352 |
+| Selection | 2,208 | 2025-05-03 | 2025-11-02 | 85 |
+| Held-out | 4,368 | 2025-11-03 | 2026-11-02 | 399 |
+
+Four feature sets were written down before any result: `pm_season` and `all` as in version 1, and `pm_season_wx` (the five of `pm_season` plus the five weather inputs) and `all_wx` (all fourteen plus the five weather inputs). Each was tried with five penalty strengths, 20 candidates in all, with the same settings as before (`alpha = 0.5`, 10,000 updates) and compared by plain logistic cost on the selection months.
+
+| Feature set | Penalty λ | Training cost | Selection cost | Chosen |
+|---|---|---|---|---|
+| pm_season | 0 | 0.1299 | 0.0984 | |
+| pm_season | 10 | 0.1312 | 0.0929 | |
+| pm_season | 100 | 0.1396 | 0.0909 | |
+| pm_season | 1000 | 0.1699 | 0.1161 | |
+| pm_season | 10000 | 0.2337 | 0.1596 | |
+| all | 0 | 0.1227 | 0.0932 | |
+| all | 10 | 0.1238 | 0.0901 | |
+| all | 100 | 0.1318 | 0.0900 | |
+| all | 1000 | 0.1525 | 0.1055 | |
+| all | 10000 | 0.2150 | 0.1492 | |
+| pm_season_wx | 0 | 0.1227 | 0.0956 | |
+| pm_season_wx | 10 | 0.1249 | 0.0898 | |
+| pm_season_wx | 100 | 0.1350 | 0.0898 | |
+| pm_season_wx | 1000 | 0.1664 | 0.1144 | |
+| pm_season_wx | 10000 | 0.2322 | 0.1584 | |
+| all_wx | 0 | 0.1132 | 0.0926 | |
+| all_wx | 10 | 0.1154 | 0.0869 | yes |
+| all_wx | 100 | 0.1258 | 0.0876 | |
+| all_wx | 1000 | 0.1503 | 0.1049 | |
+| all_wx | 10000 | 0.2138 | 0.1484 | |
+
+The chosen candidate is `all_wx` with penalty 10. Several candidates are close to each other, and the selection months hold only 85 unhealthy days, so the order among the best few should not be over-read. The candidate `all_wx` with no penalty had not fully settled after 10,000 updates (its cost still changed by about 9 parts in a million over the last 100); it was not chosen.
+
+**Held-out logistic cost (lower is better), 4,368 cell-days. This is a second look: the held-out year was already used to score version 1, so it is no longer untouched, though no choice for version 2 was made from it.**
+
+| | Held-out cost |
+|---|---|
+| Version 2 model | 0.1251 |
+| Overall training rate, always (7.1%) | 0.3086 |
+| Calendar month's training rate | 0.3155 |
+| Version 1 model, on its own rows (for comparison) | 0.1515 |
+
+The model beats both baselines, and scikit-learn fitted on the same rows gives the same held-out cost, 0.1251 (weights within 2.7e-6). Version 1's cost was measured on 4,380 held-out cell-days and version 2's on 4,368, because version 2 needs the weather forecast, so the two numbers are not computed on exactly the same days.
+
+## Version 1: model and result
 
 Logistic regression trained with this project's own gradient descent (`alpha = 0.5`, 10,000 updates, every candidate settled to a relative cost change below one part in ten million), on z-scored features, with a penalty on the weights. Ten candidates were compared by plain logistic cost (without the penalty) on the selection months; the held-out year was not used for any choice.
 

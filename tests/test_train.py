@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from training import train
+from pipeline.weather import WX_FEATURES
 from training.features import FEATURES
 from training.model import logistic_cost
 
@@ -29,6 +30,8 @@ def synthetic_dataset(first="2022-10-01", last="2025-09-30", cells=("c0", "c1"),
             f[name] = rng.normal(20.0, 5.0, size=n)
         angle = 2 * np.pi * np.asarray(dates.dayofyear, dtype=float) / 365.25
         f["season_sin"], f["season_cos"] = np.sin(angle), np.cos(angle)
+        for name in WX_FEATURES:
+            f[name] = rng.normal(10.0, 3.0, size=n)
         z = 0.4 * (f["pm2_5_mean"] - 24.0) + 1.0 * f["season_cos"]
         f["y"] = (rng.uniform(size=n) < 1 / (1 + np.exp(-z))).astype("int64")
         frames.append(f)
@@ -163,3 +166,50 @@ def _keys(node):
     elif isinstance(node, list):
         for v in node:
             yield from _keys(v)
+
+
+# ---------------------------------------------------------------- version 2
+
+def test_four_feature_sets_in_fixed_order():
+    assert list(train.FEATURE_SETS) == ["pm_season", "all", "pm_season_wx", "all_wx"]
+    assert train.FEATURE_SETS["all_wx"] == FEATURES + WX_FEATURES
+    assert train.FEATURE_SETS["pm_season_wx"] == train.FEATURE_SETS["pm_season"] + WX_FEATURES
+
+
+def test_candidates_are_sets_by_lambdas_simpler_first():
+    assert len(train.CANDIDATES) == 20
+    assert train.CANDIDATES[0] == ("pm_season", 0.0)
+    assert train.CANDIDATES[4] == ("pm_season", 10000.0)
+    assert train.CANDIDATES[-1] == ("all_wx", 10000.0)
+    assert [c[0] for c in train.CANDIDATES[::5]] == list(train.FEATURE_SETS)
+
+
+def test_candidates_store_weights():
+    m = _run(synthetic_dataset())["model"]
+    for c in m["candidates"]:
+        assert len(c["weights"]) == len(c["features"])
+        assert isinstance(c["bias"], float)
+
+
+def test_model_json_keeps_version_1_as_previous(tmp_path):
+    v1 = {"version": 1, "cost": {"train": 0.1}, "baselines": {"overall": {}}, "rows": {"train": 1},
+          "date_range": {"start": "a"}, "sklearn_cost": {"held_out": 0.2},
+          "held_out_probabilities": {"bins": []}, "weights": [1.0], "other": "dropped"}
+    path = tmp_path / "model.json"
+    path.write_text(json.dumps(v1))
+    prev = train.previous_from(path)
+    assert prev == {k: v1[k] for k in ("cost", "baselines", "rows", "date_range", "sklearn_cost",
+                                        "held_out_probabilities")} | {"version": 1}
+    # trained twice: version 2 file carries the same version 1 block
+    m = _run(synthetic_dataset())["model"]
+    m["previous"] = prev
+    path.write_text(json.dumps(m))
+    again = train.previous_from(path)
+    assert again["version"] == 1 and again["cost"] == {"train": 0.1}
+
+
+def test_model_marks_version_2_weather_and_second_look():
+    m = _run(synthetic_dataset())["model"]
+    assert m["version"] == 2 and m["second_look"] is True
+    assert m["weather"] == {"source": "ECMWF IFS via Open-Meteo Single Runs API", "run_utc": "00:00",
+                            "first_run": "2024-03-14", "variables": WX_FEATURES}

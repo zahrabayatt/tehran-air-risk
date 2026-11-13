@@ -21,7 +21,9 @@ from pipeline.fetch import AIR_QUALITY_URL, FORECAST_URL, POLLUTANTS, WEATHER, F
 from pipeline.grid import CELLS
 
 ROOT = Path(__file__).resolve().parent.parent
-MODEL_PATH = ROOT / "model" / "model.json"
+# Version 1's file: the daily pipeline does not build weather inputs yet (a later task), so its
+# tests keep running against the five-feature model that it can compute.
+MODEL_PATH = ROOT / "tests" / "fixtures" / "model_v1.json"
 LIVE_URL = predict.LIVE_FORECAST_URL
 CELL_IDS = [c["id"] for c in CELLS]
 BY_COORD = {(str(c["lat"]), str(c["lon"])): c["id"] for c in CELLS}

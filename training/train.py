@@ -16,6 +16,7 @@ predictions alone. The penalized cost is only what descent minimizes (cost_histo
 """
 from __future__ import annotations
 
+import json
 import math
 import platform
 import sys
@@ -26,12 +27,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from pipeline.weather import WX_FEATURES
 from training.features import FEATURES, split_by_time, zscore_apply, zscore_fit
 from training.labels import THRESHOLD
 from training.model import compute_cost, gradient_descent, logistic_cost, predict_proba
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_PATH = ROOT / "data" / "raw" / "hourly.csv.gz"
+WEATHER_PATH = ROOT / "data" / "raw" / "weather.csv.gz"
 MODEL_PATH = ROOT / "model" / "model.json"
 DATA_DIR = ROOT / "web" / "public" / "data"
 
@@ -39,12 +42,19 @@ SEED = 42
 CUTOFF_TEXT = "12:00 Asia/Tehran"
 DECISION_THRESHOLD = 0.5
 
-# Two feature sets only: the selection months are one warm half-year with few positives,
-# so every extra choice is mostly fitted to noise.
+# Four feature sets, written before any result: the two of version 1, each with and without
+# tomorrow's weather forecast. Simpler first, so a tie goes to the simpler candidate.
+_PM_SEASON = ["pm2_5_mean", "pm2_5_max", "pm2_5_last", "season_sin", "season_cos"]
 FEATURE_SETS = {
-    "pm_season": ["pm2_5_mean", "pm2_5_max", "pm2_5_last", "season_sin", "season_cos"],
+    "pm_season": _PM_SEASON,
     "all": list(FEATURES),
+    "pm_season_wx": _PM_SEASON + list(WX_FEATURES),
+    "all_wx": list(FEATURES) + list(WX_FEATURES),
 }
+WEATHER_INFO = {"source": "ECMWF IFS via Open-Meteo Single Runs API", "run_utc": "00:00",
+                "first_run": "2024-03-14", "variables": list(WX_FEATURES)}
+PREVIOUS_KEYS = ("cost", "baselines", "rows", "date_range", "sklearn_cost",
+                 "held_out_probabilities")
 # Penalty scale: lambda/m is the shrink per unit and m is about 11,400 training rows, so
 # lambda below 10 would change nothing visible. 10,000 shrinks the weights hard.
 LAMBDAS = (0.0, 10.0, 100.0, 1000.0, 10000.0)
@@ -60,6 +70,10 @@ ALPHA = 0.5
 ITERATIONS = 10000
 CONVERGED_RELATIVE = 1e-7
 CONVERGENCE_WINDOW = 100
+
+# The spike's result on these exact rows; main() stops before the held-out look if it differs.
+SPIKE_CHOICE = ("all_wx", 10.0)
+SPIKE_COST = 0.0869
 
 HISTORY_POINTS = 120
 PROBABILITY_BINS = [i / 10 for i in range(11)]
@@ -116,7 +130,8 @@ def select_candidate(train: pd.DataFrame, selection: pd.DataFrame, candidates,
         rec = {"feature_set": name, "features": list(FEATURE_SETS[name]), "lambda": lambda_,
                "diverged": fit["diverged"], "relative_change": change,
                "converged": change is not None and change <= CONVERGED_RELATIVE,
-               "train_cost": None, "selection_cost": None, "chosen": False}
+               "train_cost": None, "selection_cost": None, "chosen": False,
+               "weights": fit["w"].tolist(), "bias": float(fit["b"])}
         if not fit["diverged"]:
             rec["train_cost"] = plain_cost(fit, train)
             rec["selection_cost"] = plain_cost(fit, selection)
@@ -242,14 +257,30 @@ def time_dot(n: int = 1_000_000, seed: int = SEED) -> dict:
 
 # --- the run ------------------------------------------------------------------
 
+def previous_from(path: Path) -> dict | None:
+    """Version 1's numbers from an existing model.json (or its own `previous` if it is version 2)."""
+    if not Path(path).exists():
+        return None
+    old = json.loads(Path(path).read_text(encoding="utf-8"))
+    if old.get("version") == 1:
+        return {"version": 1, **{k: old[k] for k in PREVIOUS_KEYS}}
+    return old.get("previous")
+
+
 def train_model(df: pd.DataFrame, candidates=CANDIDATES, alpha: float = ALPHA,
-                iterations: int = ITERATIONS) -> dict:
-    """Pick by selection cost, retrain the winner timed, then look at held-out once."""
+                iterations: int = ITERATIONS, guard=None) -> dict:
+    """Pick by selection cost, retrain the winner timed, then look at held-out once.
+
+    `guard`, if given, is called with (records, best) after selection and before any held-out
+    row is touched; it may raise to stop the run.
+    """
     train, selection, held = split_by_time(df)
 
     records, best = select_candidate(train, selection, candidates, alpha, iterations)
     if best is None:
         raise ValueError("every candidate diverged; lower alpha")
+    if guard is not None:
+        guard(records, best)
     name, lambda_ = candidates[best]
     baselines = fit_baselines(train)                  # training rows only
 
@@ -267,7 +298,9 @@ def train_model(df: pd.DataFrame, candidates=CANDIDATES, alpha: float = ALPHA,
 
     its, hist = _downsample(final["history"])
     model = {
-        "version": 1,
+        "version": 2,
+        "second_look": True,
+        "weather": WEATHER_INFO,
         "feature_set": name,
         "features": final["features"],
         "weights": final["w"].tolist(),
@@ -309,13 +342,30 @@ def main() -> int:
     from training.features import build_dataset, labelled_windows
     from training.labels import daily_labels
 
+    from pipeline.weather import read_weather
+
     hourly = read_hourly(RAW_PATH)
     labels = daily_labels(hourly)
     windows = labelled_windows(hourly, labels)
-    df = build_dataset(hourly, labels)
+    before = build_dataset(hourly, labels)
+    df = build_dataset(hourly, labels, weather=read_weather(WEATHER_PATH))
+    no_weather_dropped = len(before) - len(df)
+    previous = previous_from(MODEL_PATH)          # version 1, before anything is overwritten
+    if previous is None:
+        raise SystemExit("no version 1 model.json to keep as previous")
 
-    result = train_model(df)
+    def guard(records, best):
+        c = records[best]
+        print(f"selection: {c['feature_set']} lambda {c['lambda']:g} cost {c['selection_cost']:.6f}")
+        if (c["feature_set"], c["lambda"]) != SPIKE_CHOICE or abs(c["selection_cost"] - SPIKE_COST) > 0.001:
+            for r in records:
+                print(f"  {r['feature_set']:<13} {r['lambda']:>7g} train {r['train_cost']:.6f} "
+                      f"selection {r['selection_cost']:.6f}{'  <- chosen' if r['chosen'] else ''}")
+            raise SystemExit("selection differs from the spike; stopping before the held-out look")
+
+    result = train_model(df, guard=guard)
     model, train = result["model"], result["train"]
+    model["previous"] = previous
     model["vectorization"] = time_dot()
     np.testing.assert_allclose(predict_from_model(model, result["held_out"]), result["held_p"],
                                rtol=1e-12)
@@ -326,12 +376,13 @@ def main() -> int:
         "history.json": write_json(DATA_DIR / "history.json", build_history(labels)),
         "profile.json": write_json(DATA_DIR / "profile.json", build_profile(
             hourly, labels, windows, df,
-            {"train": train, "selection": result["selection"], "held_out": result["held_out"]})),
+            {"train": train, "selection": result["selection"], "held_out": result["held_out"]},
+            no_weather_dropped=no_weather_dropped)),
     }
 
     print("candidates (selection cost, plain):")
     for c in model["candidates"]:
-        print(f"  {c['feature_set']:<10} lambda {c['lambda']:>7g}  train {c['train_cost']:.6f}  "
+        print(f"  {c['feature_set']:<13} lambda {c['lambda']:>7g}  train {c['train_cost']:.6f}  "
               f"selection {c['selection_cost']:.6f}  change {c['relative_change']:.2e}"
               f"{'  <- chosen' if c['chosen'] else ''}")
     print("cost:", model["cost"])

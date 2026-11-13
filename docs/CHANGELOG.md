@@ -2,6 +2,21 @@
 
 All notable changes to this project. Dates are real dates, from the commit history.
 
+## 2.0.0 - 2026-11-13
+
+Model version 2: tomorrow's weather.
+
+### Added
+
+- Five inputs from the ECMWF IFS 00 UTC weather forecast of the issue day, for the hours of the target day: mean temperature, mean humidity, mean wind speed, total precipitation and mean boundary layer height (Open-Meteo Single Runs API, runs from 2024-03-14).
+- Four feature sets (`pm_season`, `all`, `pm_season_wx`, `all_wx`) with five penalty strengths each, 20 candidates trained on the same 11,544 rows that have a weather forecast. Chosen by selection cost: `all_wx` with penalty 10 (selection cost 0.0869).
+- Held-out cost 0.1251, against 0.3086 for the overall rate and 0.3155 for each month's rate; scikit-learn gives the same fit. This is a second look at the held-out year, which was already used for version 1.
+- `model/model.json` is version 2 and keeps version 1's numbers under `previous`. Every candidate now stores its weights and bias.
+
+### Changed
+
+- The training rows now start on 2024-03-15 (4,968 training, 2,208 selection, 4,368 held-out rows).
+
 ## 1.0.1 - 2026-11-04
 
 Changes from the final review.

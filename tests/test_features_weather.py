@@ -5,6 +5,7 @@ import datetime as dt
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from pipeline.weather import WX_FEATURES, read_weather
 from tests.test_leakage import make_hourly
@@ -80,3 +81,27 @@ def test_read_weather_round_trip_joins(tmp_path):
     back = read_weather(path)
     assert isinstance(back["target_date"].iloc[0], dt.date)
     assert len(build_dataset(hourly, labels, weather=back)) == len(plain)
+
+
+def test_string_or_timestamp_target_dates_raise_instead_of_joining_nothing():
+    hourly, labels = base()
+    wx = make_weather(build_dataset(hourly, labels))
+    for convert in (str, pd.Timestamp):
+        bad = wx.assign(target_date=wx["target_date"].map(convert))
+        with pytest.raises(ValueError, match="target_date"):
+            build_dataset(hourly, labels, weather=bad)
+
+
+def test_weather_run_on_the_wrong_day_raises():
+    hourly, labels = base()
+    plain = build_dataset(hourly, labels)
+    wx = make_weather(plain)
+    # run of day D-1 (a day early) for the row of D+1: not today's 00 UTC run
+    early = wx.assign(issued_run_utc=[f"{pd.Timestamp(d) - pd.Timedelta(days=1):%Y-%m-%d}T00:00Z"
+                                      for d in plain["day"]])
+    with pytest.raises(ValueError, match="issued_run_utc"):
+        build_dataset(hourly, labels, weather=early)
+    # a frame keyed to D instead of D+1 joins other days' rows and must be refused
+    keyed_d = wx.assign(target_date=plain["day"])
+    with pytest.raises(ValueError, match="issued_run_utc"):
+        build_dataset(hourly, labels, weather=keyed_d)

@@ -199,8 +199,15 @@ def build_dataset(hourly: pd.DataFrame, labels: pd.DataFrame,
         return out
     if weather.duplicated(["cell_id", "target_date"]).any():
         raise ValueError("weather has duplicate (cell_id, target_date) pairs")
+    if not all(type(d) is dt.date for d in weather["target_date"]):
+        raise ValueError("weather target_date must be datetime.date values (use read_weather); "
+                         "strings or Timestamps would silently join no rows")
     wx = weather[["cell_id", "target_date", "issued_run_utc", *WX_FEATURES]]
     out = out.merge(wx, on=["cell_id", "target_date"], how="inner")
+    # the run must be the 00 UTC run of the issue day D itself, not of another day
+    wrong = pd.to_datetime(out["issued_run_utc"]).dt.tz_localize(None).dt.normalize()         != pd.to_datetime(out["day"])
+    if wrong.any():
+        raise ValueError(f"issued_run_utc is not the 00 UTC run of the issue day for {int(wrong.sum())} rows")
     out = out.dropna(subset=WX_FEATURES)
     out = out.sort_values(["cell_id", "day"]).reset_index(drop=True)
     return out[AUDIT_COLUMNS + ["issued_run_utc"] + FEATURES + WX_FEATURES + ["y"]]

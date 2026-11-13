@@ -12,7 +12,7 @@ import pytest
 from pipeline import weather
 from pipeline.fetch import FetchError
 from pipeline.grid import CELLS
-from pipeline.weather import WEATHER_VARS, WX_FEATURES, fetch_run, weather_inputs
+from pipeline.weather import WEATHER_VARS, WX_FEATURES, RunNotAvailable, fetch_run, weather_inputs
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "single_run_2024-03-14.json").read_text())
 RUN = dt.date(2024, 3, 14)
@@ -82,6 +82,33 @@ def test_run_without_hours_raises_fetch_error():
     assert len(calls) == 1                      # a refused request is not retried
     assert calls[0]["run"] == "2024-03-14T00:00" and calls[0]["models"] == "ecmwf_ifs"
     assert calls[0]["forecast_hours"] == 48 and calls[0]["timezone"] == "GMT"
+
+
+def test_http_400_is_run_not_available_and_other_failures_are_not():
+    """The daily run relies on this split: a run that is not out yet waits, anything else is a failure."""
+    def refuse(url, params, timeout):
+        return Resp(400, {"error": True, "reason": "requested model run is not available"})
+
+    with pytest.raises(RunNotAvailable) as raised:
+        fetch_run(TWO_CELLS, RUN, get=refuse, sleep=lambda s: None)
+    assert isinstance(raised.value, FetchError)
+
+    def teapot(url, params, timeout):
+        return Resp(418, "no")
+
+    with pytest.raises(FetchError) as other:
+        fetch_run(TWO_CELLS, RUN, get=teapot, sleep=lambda s: None)
+    assert not isinstance(other.value, RunNotAvailable)
+
+
+def test_a_repeated_hour_collapses_and_a_conflicting_one_is_an_error():
+    block = json.loads(json.dumps(FIXTURE["data"][0]))
+    block["hourly"] = {k: v + v[:2] for k, v in block["hourly"].items()}
+    frame = fetch_run(TWO_CELLS[:1], RUN, get=lambda url, params, timeout: Resp(200, block), sleep=lambda s: None)
+    assert len(frame) == 48 and not frame.duplicated(["cell_id", "time_utc"]).any()
+    block["hourly"]["temperature_2m"][-1] += 1.0
+    with pytest.raises(FetchError, match="different values"):
+        fetch_run(TWO_CELLS[:1], RUN, get=lambda url, params, timeout: Resp(200, block), sleep=lambda s: None)
 
 
 def test_issued_run_is_00_utc_of_the_issue_day():

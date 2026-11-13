@@ -514,7 +514,7 @@ test('the daily forecast step reads the forecast log and explains the frozen mod
   const last = new Date(Math.max(...log.entries.map((e: { issued_at: string }) => Date.parse(e.issued_at)))).toISOString();
   await expect(stat(page, 'Last run')).toContainText(`${last.slice(0, 10)} ${last.slice(11, 16)} UTC`);
   await expect(stat(page, 'Inputs up to')).toHaveText(model.cutoff);
-  await expect(stat(page, 'Scheduled')).toHaveText('13:30 UTC (17:00 Tehran)');
+  await expect(stat(page, 'Scheduled')).toHaveText('10:30 UTC (14:00 Tehran)');
   await expect(page.getByTestId('worked')).toContainText(`Frozen model v${model.version}`);
   await expect(page.getByTestId('worked')).toContainText(model.weights[0].toFixed(3));
   const text = await pageText(page);

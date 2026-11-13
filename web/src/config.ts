@@ -5,8 +5,8 @@ export const GITHUB_URL = 'https://github.com/zahrabayatt/tehran-air-risk';
 /** Link to the sibling project. Leave empty to hide the "Other project" link. */
 export const HOUSE_URL = 'https://zahrabayatt.github.io/tehran-house-price/';
 
-/** When the daily workflow runs, in UTC. A test checks it against the cron in .github/workflows/daily.yml. */
-export const DAILY_RUN_UTC = '13:30';
+/** When the first of the daily workflow's four tries runs, in UTC. A test checks it against the cron in .github/workflows/daily.yml. */
+export const DAILY_RUN_UTC = '10:30';
 /** Tehran is UTC+03:30 all year (no daylight saving since 2022). */
 const TEHRAN_OFFSET_MIN = 210;
 /** The same moment in Tehran time, derived from DAILY_RUN_UTC. */

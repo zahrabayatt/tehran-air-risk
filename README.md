@@ -33,12 +33,12 @@ The full reading is in [`docs/DATA_CARD.md`](docs/DATA_CARD.md).
 
 ## How the daily forecast works
 
-A scheduled GitHub Actions workflow ([`.github/workflows/daily.yml`](.github/workflows/daily.yml)) runs every day at 13:30 UTC (17:00 in Tehran, well after the 12:00 Tehran cutoff, and later than Open-Meteo published the day's 00 UTC CAMS run in the one check so far, about 9.7 hours after its start):
+A scheduled GitHub Actions workflow ([`.github/workflows/daily.yml`](.github/workflows/daily.yml)) tries four times a day, at 10:30, 12:30, 14:30 and 16:30 UTC (14:00 to 20:00 in Tehran, all after the 12:00 Tehran cutoff). Open-Meteo's metadata shows the CAMS 00 UTC run is ready about 10:06 UTC and the ECMWF 00 UTC run about 06:24 UTC:
 
-1. It fetches today's hourly values for all twelve squares and builds the model's inputs from the 12 hours up to the cutoff only. The target date comes from Tehran time inside the script, never from the runner's clock.
+1. It fetches today's hourly values for all twelve squares, builds the model's inputs from the 12 hours up to the cutoff only, and adds tomorrow's weather from the ECMWF 00 UTC run. The target date comes from Tehran time inside the script, never from the runner's clock.
 2. The one **frozen** model (`model/model.json`) gives each square a probability for tomorrow. Retraining is a deliberate manual step, never part of the daily run.
-3. If a square's data cannot be fetched, the run records a **gap** with the reason. Nothing is filled in, interpolated or invented.
-4. For earlier forecasts whose day has ended, it fetches what actually happened and records the outcome. A forecast is never changed afterwards.
+3. A forecast is saved only when both sources are ready for that square. Otherwise the next try retries it; the last try of the day records a **gap** with the reason. Nothing is filled in, interpolated or invented. A forecast saved after Tehran midnight is marked as made late.
+4. For earlier forecasts whose day has ended, it fetches what actually happened and records the outcome. A saved forecast is never changed or replaced.
 5. It commits only `data/predictions.json`, builds the site and deploys it to GitHub Pages.
 
 CAMS's own forecast for tomorrow is stored for display and is never an input, because the model would then be a copy of that forecast.

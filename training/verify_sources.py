@@ -296,7 +296,12 @@ WX_POINT = {"latitude": 35.70, "longitude": 51.34}  # inside West Tehran
 WX_VARS = ["temperature_2m", "relative_humidity_2m", "wind_speed_10m", "precipitation", "boundary_layer_height"]
 WX_MODEL = "ecmwf_ifs"          # ECMWF IFS HRES 9 km, the model with the longest archive in every API
 CUTOFF_UTC = "08:30"            # 12:00 Asia/Tehran (UTC+03:30; Iran has had no DST since 2022)
-PIPELINE_UTC = "13:30"          # daily workflow time
+PIPELINE_UTC = "13:30"          # version 1 workflow time (version 2 tries from 10:30)
+CAMS_AVAILABILITY_SECTION = "### CAMS run availability and the 13:30 UTC choice (measured 2026-11-04, one observation)\n\nOpen-Meteo publishes the state of the `cams_global` air-quality domain at `https://air-quality-api.open-meteo.com/data/cams_global/static/meta.json` (fetched 2026-11-04 about 11:35 UTC; the raw copy is `data/raw/cams_meta_2026-11-04.json`, git-ignored). The file reports only the latest run, so this is a single observation, not a distribution. It says the domain updates every 12 hours (`update_interval_seconds` 43200) and that the latest run was initialised at 2026-11-04 00:00 UTC and became available at 2026-11-04 09:43 UTC: a delay of about 9.7 hours.\n\nThe daily workflow therefore runs at 13:30 UTC (17:00 Tehran). That is about 3.8 hours after the 00 UTC run was available on the day measured, so the day's 00 UTC run is in hand with room to spare, and 13:30 to 13:36 UTC is the window in which the live inputs were compared with the history above and found identical. An earlier choice of 10:00 UTC would have left only about 17 minutes after the availability seen here, and was never compared against the history. A later or slower CAMS run than the one observed would still have to arrive more than 3.8 hours late to matter. The observation says nothing about days with a delayed run; a run whose inputs are not yet published records gaps rather than inventing values.\n"
+# A second check of the 00 UTC ECMWF run metadata, made 2026-11-12 and recorded in the design notes (not in data/raw).
+WX_RUN_SECOND_DATE = "2026-11-12"
+WX_RUN_DELAY_H_SECOND = 6.4
+WX_RUN_AVAILABLE_SECOND = "06:24"
 EQUIV_TARGETS = ["2026-10-12", "2026-10-13", "2026-10-14"]  # target days D for the comparison
 
 
@@ -630,7 +635,7 @@ def stage_profile():
     # ---- weather
     add("## Weather: can tomorrow's forecast, as issued, be reproduced?\n")
     add(f"Point {w['point']['latitude']}, {w['point']['longitude']} (West Tehran); model `{w['model']}` (ECMWF IFS HRES 9 km); variables temperature_2m, "
-        "relative_humidity_2m, wind_speed_10m, precipitation, boundary_layer_height. Cutoff 12:00 Tehran = 08:30 UTC; the workflow runs at 13:30 UTC. "
+        "relative_humidity_2m, wind_speed_10m, precipitation, boundary_layer_height. Cutoff 12:00 Tehran = 08:30 UTC; the daily tries start at 10:30 UTC. "
         "Coverage was probed at this one point and is assumed the same at the other 11 cell centres.\n")
     meta = w["ecmwf_ifs_run_meta"]
     add(f"- The 00 UTC IFS run became available {meta['delay_hours']} h after initialisation (one observation of Open-Meteo's run metadata: initialised "
@@ -692,16 +697,44 @@ def stage_profile():
         "Tomorrow's weather is not an input: the spec's \"tomorrow's forecast weather\" becomes \"today's weather up to the cutoff\". "
         "The Single Runs path stays available as a later experiment on the shorter window.\n")
 
+    # What follows comes after the "Live vs history" section, which compare_live measures and this file keeps.
+    head_text = "\n".join(L) + "\n"
+    L.clear()
+    add(CAMS_AVAILABILITY_SECTION)
+    add("## Weather forecast runs\n")
+    add("Version 2 uses tomorrow's weather as forecast, which supersedes the \"today's weather only\" decision above.\n")
+    add("- **Source:** Open-Meteo Single Runs API, `https://single-runs-api.open-meteo.com/v1/forecast`, `models=ecmwf_ifs` (ECMWF IFS), `timezone=GMT`, "
+        "`forecast_hours=48`, hourly `temperature_2m`, `relative_humidity_2m`, `wind_speed_10m`, `precipitation`, `boundary_layer_height`. "
+        "One request per run day covers all 12 cell centres (`pipeline/weather.py`).")
+    add("- **Run hour:** the 00 UTC run of the issue day D, `run=<D>T00:00`. It is the only run in hand at the 08:00 UTC cutoff.")
+    add(f"- **Availability:** two observations of Open-Meteo's run metadata for the 00 UTC run, made on different days, so they measure different runs and both are kept. "
+        f"{meta['delay_hours']} h after 00 UTC (initialised {meta['initialised_utc']}, available {meta['available_utc']}): the first check, saved in "
+        "`data/raw/verify_weather.json` and read by this generator. "
+        f"{WX_RUN_DELAY_H_SECOND} h after 00 UTC (about {WX_RUN_AVAILABLE_SECOND} UTC): the check of {WX_RUN_SECOND_DATE}, recorded in the design notes and not saved under `data/raw`. "
+        "The run is therefore published about 6.4 to 6.8 hours after 00 UTC, well before the cutoff and before the first daily try at 10:30 UTC. Two observations are not a guarantee.")
+    add("- **Daily tries:** 10:30, 12:30, 14:30 and 16:30 UTC. A forecast is saved only when both the CAMS and the ECMWF run are ready, and a saved forecast is never changed. "
+        "A run the API does not hold yet (HTTP 400) counts as not ready, never as a gap, until the last try of the day. "
+        "This replaces the single 13:30 UTC time chosen in \"Live vs history\" above, which was based on the CAMS run alone.")
+    add("- **Target day:** run hours 21 to 44 (21:00 UTC on D to 20:00 UTC on D+1), 24 hours. Reductions: `wx_temp`, `wx_rh`, `wx_wind`, `wx_blh` are means, "
+        "`wx_precip` is a sum. A variable with more than 4 missing hours of the 24 is missing (NaN, never filled).")
+    add("- **First run:** 2024-03-14 (first target day 2024-03-15). The API refuses earlier runs (\"requested model run is not available\"). "
+        "Training rows without all five weather inputs are dropped for every candidate alike.")
+    add("- **Why Single Runs:** the Historical Forecast API is not an as-issued archive: it joins the first hours of each run into one near-analysis series, "
+        "so it shows what the weather was, not what was forecast. The Previous Runs API (`previous_day1`) mixes runs through the day, has a short and patchy archive "
+        "for `ecmwf_ifs` (first populated 2025-10-01) and never has boundary layer height. Only a Single Run reproduces the exact forecast that was in hand on issue day, "
+        "boundary layer height included.")
+    add("- **Cache:** the history build stores one JSON per run under `data/raw/weather_cache/` (git-ignored) and resumes from it; a run the API refuses is recorded "
+        "as an error and listed in the build's output.\n")
     add("## Reproduce\n")
     add("```\npython training/verify_sources.py all      # grid, history, weather, epa (slow: respects the rate limits)\n"
         "python training/verify_sources.py profile  # regenerate this file from data/raw/verify_*.json\n```\n")
     out = ROOT / "docs" / "DATA_PROFILE.md"
     out.parent.mkdir(exist_ok=True)
-    text = "\n".join(L) + "\n"
+    tail_text = "\n".join(L) + "\n"
     # The "Live vs history" section is measured by `python -m pipeline.compare_live`, not here: keep it.
     from pipeline.compare_live import extract_section, splice
     kept = extract_section(out.read_text(encoding="utf-8")) if out.exists() else None
-    out.write_text(splice(text, kept) if kept else text, encoding="utf-8")
+    out.write_text((splice(head_text, kept) if kept else head_text) + "\n" + tail_text, encoding="utf-8")
     print("wrote", out)
 
 

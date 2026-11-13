@@ -15,8 +15,13 @@ no forecast has been issued yet. Each entry is one forecast for one cell and one
     gap                 true when no forecast could be made for this cell (nothing was invented)
     gap_reason          why, for a gap; null otherwise
     cams_forecast_pm25  CAMS's own forecast mean PM2.5 for the target day, display only, never a model input
+    issued_late         true when the forecast was made after the target day had begun (issued_at later than
+                        20:30 UTC on the day before target_date, which is 00:00 Tehran)
+    weather             tomorrow's ECMWF weather inputs the model used, {wx_temp, wx_rh, wx_wind, wx_precip, wx_blh}
+                        (the Lab's worked example); null on a gap
 
-There is exactly one entry per (target_date, cell_id), sorted by target_date then cell_id, one
+A saved forecast is never changed: the first one saved for a (target_date, cell_id) wins. There is
+exactly one entry per (target_date, cell_id), sorted by target_date then cell_id, one
 entry per line so a daily change is a small diff.
 """
 from __future__ import annotations
@@ -55,6 +60,11 @@ def day_over(target: dt.date, now) -> bool:
     return pd.Timestamp(now) >= end
 
 
+def issued_late(target: dt.date, now) -> bool:
+    """True when `now` is later than the start of Tehran's day `target` (00:00 Tehran, 20:30 UTC the day before)."""
+    return pd.Timestamp(now) > pd.Timestamp(target, tz=TEHRAN)
+
+
 def utc_stamp(now) -> str:
     return pd.Timestamp(now).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -91,14 +101,14 @@ def save(path, entries: list[dict]) -> None:
 def merge(existing: list[dict], incoming: list[dict]) -> list[dict]:
     """Add `incoming` to `existing`, keeping one entry per (target_date, cell_id).
 
-    A rerun replaces the earlier entry for its key. The exception: a gap never replaces a real
-    forecast, so a failed rerun cannot destroy a good one; a real forecast may replace a gap.
+    A saved forecast is never replaced: a non-gap entry stays whatever arrives later, so the first
+    forecast saved wins. A gap may be replaced, by a later gap (its reason is newer) or by a forecast.
     """
     merged = {(e["target_date"], e["cell_id"]): e for e in existing}
     for e in incoming:
         key = (e["target_date"], e["cell_id"])
         old = merged.get(key)
-        if old is not None and e["gap"] and not old["gap"]:
+        if old is not None and not old["gap"]:
             continue
         merged[key] = e
     return sort_entries(list(merged.values()))

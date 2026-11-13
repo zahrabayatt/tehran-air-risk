@@ -1,26 +1,31 @@
 """Daily forecast: for every grid cell, the probability that tomorrow's Tehran-day mean PM2.5 exceeds 35.4.
 
-    python -m pipeline.predict                 # issue a forecast for "now"
+    python -m pipeline.predict                 # one try for "now"
+    python -m pipeline.predict --final         # the day's last try: a cell that is not ready becomes a gap
+    python -m pipeline.predict --dry-run       # fetch and print the entries, write nothing
     python -m pipeline.predict --now 2026-11-03T13:30:00Z --out /tmp/p.json   # replay / test
+
+The workflow tries four times a day. A forecast needs two sources: the CAMS pollutants up to the
+cutoff, and tomorrow's weather from the ECMWF IFS 00 UTC run of the issue day. A cell is saved only
+when both are ready (`readiness`); otherwise nothing is saved for it and the next try retries,
+until the last try (`--final`, or any try from 21:00 Tehran time), which records a gap with the
+reason. A saved forecast is never overwritten, and one saved after Tehran midnight is marked
+`issued_late`. A run the weather API does not hold yet (HTTP 400) is "not ready", never a gap.
 
 Issue date D is the Tehran date of now when now is at or after 12:00 Asia/Tehran, otherwise the
 previous Tehran date, and the target is D+1. The runner's own date is never used, so a run that
 is delayed past midnight UTC still forecasts the right day.
 
 Inputs are the 12 hourly stamps from 21:00 UTC on D-1 to 08:00 UTC on D (everything up to the 12:00
-Tehran cutoff), fetched live from the same sources the model was trained on: pollutants from the
-Open-Meteo Air Quality API (cams_global) and weather from the Historical Forecast API
-(ecmwf_ifs). If that API has not caught up with today, the missing weather hours come from the live
-forecast API with the same model (see docs/DATA_PROFILE.md, "Live vs history"). The deployed model
-only uses PM2.5 and the season, so weather is carried for completeness and does not affect the result.
+Tehran cutoff): pollutants and today's weather from the Open-Meteo Air Quality and Historical
+Forecast APIs (the live forecast API fills weather hours the historical one has not caught up on,
+see docs/DATA_PROFILE.md, "Live vs history"), plus the five tomorrow-weather inputs (`wx_*`) from the
+Single Runs API (`pipeline.weather`). Features come from `training.features.build_row`, scaling and
+weights from the frozen model/model.json, which this module only reads. CAMS's own forecast of the
+target day is stored as `cams_forecast_pm25` for display; it is not a model input.
 
-Features come from `training.features.build_row`, scaling and weights from the frozen
-model/model.json, which this module only reads. CAMS's own forecast of the target day is stored as
-`cams_forecast_pm25` for display; it is not a model input.
-
-Nothing is invented: if a cell's fetch fails, the time axis is short, or any needed value is null,
-that cell gets a gap entry (probability null) with the reason, and the other cells are unaffected.
-Exit status: 0 if every cell of the target date has a forecast, 3 if any has a gap, 2 on bad input.
+Nothing is invented. Exit status: 0 if every cell of the target date has a forecast, 3 if a gap was
+recorded, 4 if some cell is not ready and this was not the last try, 2 on bad input.
 """
 from __future__ import annotations
 
@@ -30,15 +35,16 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, NamedTuple, Sequence
 
 import numpy as np
 import pandas as pd
 import requests
 
 from pipeline import store
-from pipeline.fetch import WEATHER, FetchError, fetch_hourly
+from pipeline.fetch import POLLUTANTS, WEATHER, FetchError, fetch_hourly
 from pipeline.grid import CELLS
+from pipeline.weather import WX_FEATURES, RunNotAvailable, fetch_run, weather_inputs
 from training.features import INPUTS, LAST_STAMP_HOUR, WINDOW_HOURS, build_row, on_standard_time, zscore_apply
 from training.labels import MIN_HOURS, TEHRAN
 from training.model import predict_proba
@@ -53,6 +59,10 @@ BUDGET_S = 600             # time allowed for all fetching in one run; what is n
 STOP_AFTER = 3             # consecutive failed cells before the rest are given up on (the API is down)
 PROBABILITY_DECIMALS = 4
 EXIT_GAPS = 3
+EXIT_NOT_READY = 4         # some cell is not ready yet and this was not the last try: nothing saved for it
+FINAL_HOUR = 21            # from this Tehran hour a try is the last chance and records gaps
+CAMS_REASON = "CAMS hours up to the cutoff not published yet"
+ECMWF_REASON = "ECMWF 00 UTC run not published yet"
 
 
 def load_model(path=MODEL_PATH) -> dict:
@@ -160,91 +170,214 @@ def cams_forecast(cell_frame: pd.DataFrame, target: dt.date) -> float | None:
     return round(float(hours.mean()), 2) if len(hours) >= MIN_HOURS else None
 
 
-def _gap_reason(cell_frame: pd.DataFrame, day: dt.date, target: dt.date) -> str:
-    if not all(on_standard_time([day, target])):
-        return "issue or target day was on Iran summer time (+04:30); the model has no input for it"
-    stamps = window_stamps(day)
+def fetch_weather(cells: Sequence[dict], day: dt.date, *, get, sleep, deadline=None,
+                  clock=None) -> tuple[pd.DataFrame | None, str | None]:
+    """(inputs, error): tomorrow's five weather inputs per cell from the 00 UTC run of `day`, in one request.
+
+    `inputs` is `weather_inputs`' frame, or None when there is none yet: the API says it holds no such run
+    (HTTP 400, `RunNotAvailable`: not published yet, so the try waits) or the fetch failed (`error` says why).
+    """
+    try:
+        run_frame = fetch_run(cells, day, get=get, sleep=sleep, deadline=deadline, clock=clock or time.monotonic)
+    except RunNotAvailable:
+        return None, None
+    except FetchError as exc:
+        return None, f"ECMWF forecast fetch failed: {exc}"
+    return weather_inputs(run_frame, day), None
+
+
+def _cams_reason(cell_frame: pd.DataFrame | None, stamps: pd.DatetimeIndex) -> str | None:
+    """Why the pre-cutoff hours are not usable yet, or None when all 12 are there and complete."""
+    if cell_frame is None or cell_frame.empty:
+        return CAMS_REASON
     window = cell_frame[cell_frame["time_utc"].isin(stamps)]
     n = window["time_utc"].nunique()
     if n < WINDOW_HOURS:
-        return f"time axis covers {n} of {WINDOW_HOURS} expected pre-cutoff hours"
+        return f"{CAMS_REASON} (time axis covers {n} of {WINDOW_HOURS} expected pre-cutoff hours)"
     nulls = window[INPUTS].isna().sum()
     nulls = nulls[nulls > 0]
+    air = [f"{name} ({int(c)} h)" for name, c in nulls.items() if name in POLLUTANTS]
+    if air:                                  # the API answers with nulls for hours the CAMS run has not reached
+        return f"{CAMS_REASON}: null " + ", ".join(air)
     if len(nulls):
         return "null values in the pre-cutoff hours: " + ", ".join(f"{name} ({int(c)} h)" for name, c in nulls.items())
-    return "no feature row could be built from the pre-cutoff hours"
+    return None
 
 
-def make_entry(cell: dict, cell_frame: pd.DataFrame | None, error: str | None, *, day: dt.date,
-               issued_at: str, model: dict) -> dict:
-    """One predictions entry for `cell`: a forecast, or a gap that says why."""
+def _weather_reason(row: pd.Series | None) -> str | None:
+    """Why tomorrow's weather inputs are not usable yet, or None when all five are there."""
+    if row is None:
+        return ECMWF_REASON
+    missing = [name for name in WX_FEATURES if pd.isna(row[name])]
+    if len(missing) == len(WX_FEATURES):
+        return ECMWF_REASON
+    if missing:
+        return f"ECMWF forecast has too many missing hours for {', '.join(missing)}"
+    return None
+
+
+def readiness(cams_frame: pd.DataFrame | None, weather_frame: pd.DataFrame | None, cells: Sequence[dict],
+              day: dt.date) -> dict[str, str | None]:
+    """Per cell: None when both sources are ready for issue day `day`, else the reason it is not.
+
+    `cams_frame` is the hourly pollutants and today's weather (`fetch_frame`), `weather_frame` the
+    tomorrow inputs (`weather_inputs`) or None when the run is not published. The reasons: the
+    day is on summer time, "CAMS hours up to the cutoff not published yet" (or the pollutant or weather
+    value that is null), "ECMWF 00 UTC run not published yet", or the specific missing wx_ variable.
+    """
+    target = day + dt.timedelta(days=1)
+    stamps = window_stamps(day)
+    wx_rows = {}
+    if weather_frame is not None and len(weather_frame):
+        wx_rows = {row["cell_id"]: row for _, row in weather_frame.iterrows()}
+    out = {}
+    for cell in cells:
+        if not all(on_standard_time([day, target])):
+            out[cell["id"]] = "issue or target day was on Iran summer time (+04:30); the model has no input for it"
+            continue
+        mine = None if cams_frame is None or not len(cams_frame) else cams_frame[cams_frame["cell_id"] == cell["id"]]
+        out[cell["id"]] = _cams_reason(mine, stamps) or _weather_reason(wx_rows.get(cell["id"]))
+    return out
+
+
+def _weather_values(row: pd.Series) -> dict[str, float]:
+    return {name: round(float(row[name]), PROBABILITY_DECIMALS) for name in WX_FEATURES}
+
+
+def make_entry(cell: dict, cell_frame: pd.DataFrame | None, reason: str | None, wx_row: pd.Series | None, *,
+               day: dt.date, issued_at: str, issued_late: bool, model: dict) -> dict:
+    """One predictions entry for `cell`: a forecast when `reason` is None, else a gap that says why."""
     target = day + dt.timedelta(days=1)
     entry = {"issued_at": issued_at, "target_date": target.isoformat(), "cell_id": cell["id"],
              "probability": None, "predicted": None, "model_version": model["version"],
-             "outcome": None, "outcome_mean_pm25": None, "gap": True, "gap_reason": None,
-             "cams_forecast_pm25": None}
-    if error is not None or cell_frame is None or cell_frame.empty:
-        entry["gap_reason"] = error or "no data returned"
+             "outcome": None, "outcome_mean_pm25": None, "gap": True, "gap_reason": reason,
+             "cams_forecast_pm25": None, "issued_late": issued_late, "weather": None}
+    if cell_frame is not None and not cell_frame.empty:
+        entry["cams_forecast_pm25"] = cams_forecast(cell_frame, target)
+    if reason is not None:
         return entry
-    entry["cams_forecast_pm25"] = cams_forecast(cell_frame, target)
     try:
         row = build_row(cell_frame, cell["id"], day)
     except ValueError as exc:
         row = None
         entry["gap_reason"] = f"unusable hourly data: {exc}"
     if row is None:
-        entry["gap_reason"] = entry["gap_reason"] or _gap_reason(cell_frame, day, target)
+        entry["gap_reason"] = entry["gap_reason"] or "no feature row could be built from the pre-cutoff hours"
         return entry
+    weather = _weather_values(wx_row)
+    row.update(weather)
     probability = round(model_probability(model, row), PROBABILITY_DECIMALS)
     entry.update(probability=probability, predicted=int(probability >= model.get("decision_threshold", 0.5)),
-                 gap=False)
+                 gap=False, weather=weather)
     return entry
 
 
-def run(now=None, *, get: Callable | None = None, sleep: Callable[[float], None] | None = None,
-        model_path=MODEL_PATH, predictions_path=PREDICTIONS_PATH, cells: Sequence[dict] = CELLS,
-        clock: Callable[[], float] | None = None) -> list[dict]:
-    """Issue the forecast for `now`, merge it into the predictions file, and return the new entries.
+class Try(NamedTuple):
+    """What one try did: the target date, the entries it made, the cells it left for the next try (with
+    the reason), and how many cells already held a forecast."""
+    target: str
+    entries: list
+    waiting: dict
+    skipped: int
 
+
+def default_final(now, day: dt.date) -> bool:
+    """True from 21:00 Tehran time on issue day `day`, and after Tehran midnight (the day has begun)."""
+    local = store.tehran_now(now)
+    return local.hour >= FINAL_HOUR or local.date() > day
+
+
+def issue(now=None, *, get: Callable | None = None, sleep: Callable[[float], None] | None = None,
+          final: bool | None = None, model_path=MODEL_PATH, predictions_path=PREDICTIONS_PATH,
+          cells: Sequence[dict] = CELLS, clock: Callable[[], float] | None = None, write: bool = True) -> Try:
+    """One try at tomorrow's forecast for `now`; saves what is ready into the predictions file.
+
+    A cell that already holds a forecast for the target day is skipped: no fetch, no change. For the
+    others, both sources are fetched once (pollutants and today's weather, then the 00 UTC weather run) and
+    `readiness` decides per cell. A cell that is ready is saved. One that is not is left for the next
+    try, unless `final` (default: `default_final`), when it is saved as a gap with the reason.
     `get`, `sleep` and `clock` default to requests.get, time.sleep and time.monotonic; tests inject
-    fakes. Fetching has a budget of BUDGET_S seconds, so a hanging or rate-limited API ends in
-    recorded gaps rather than a run that never finishes.
+    fakes. All fetching shares one budget of BUDGET_S seconds. `write=False` saves nothing (dry run).
     """
     now = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
     day = store.issue_date(now)
+    target = day + dt.timedelta(days=1)
+    final = default_final(now, day) if final is None else final
     model = load_model(model_path)
     existing = store.load(predictions_path)       # a corrupt file stops the run before any request
+    held = {e["cell_id"] for e in existing if e["target_date"] == target.isoformat() and not e["gap"]}
+    pending = [c for c in cells if c["id"] not in held]
+    skipped = len(cells) - len(pending)
+    if not pending:
+        return Try(target.isoformat(), [], {}, skipped)
     clock = clock or time.monotonic
-    frame, errors = fetch_cells(cells, day, get=get or requests.get, sleep=sleep or time.sleep,
-                                deadline=clock() + BUDGET_S, clock=clock)
-    issued_at = store.utc_stamp(now)
-    entries = []
-    for cell in cells:
+    get, sleep = get or requests.get, sleep or time.sleep
+    deadline = clock() + BUDGET_S
+    frame, errors = fetch_cells(pending, day, get=get, sleep=sleep, deadline=deadline, clock=clock)
+    weather, weather_error = fetch_weather(pending, day, get=get, sleep=sleep, deadline=deadline, clock=clock)
+    reasons = readiness(frame, weather, pending, day)
+    for cell_id, reason in reasons.items():
+        if reason == ECMWF_REASON and weather_error:
+            reasons[cell_id] = weather_error
+    reasons.update(errors)                                   # a pollutant fetch that failed for good
+    wx_rows = {} if weather is None else {r["cell_id"]: r for _, r in weather.iterrows()}
+    issued_at, late = store.utc_stamp(now), store.issued_late(target, now)
+    entries, waiting = [], {}
+    for cell in pending:
+        reason = reasons[cell["id"]]
+        if reason is not None and not final:
+            waiting[cell["id"]] = reason
+            continue
         mine = frame[frame["cell_id"] == cell["id"]] if len(frame) else None
-        entries.append(make_entry(cell, mine, errors.get(cell["id"]), day=day, issued_at=issued_at, model=model))
-    store.save(predictions_path, store.merge(existing, entries))
-    return store.sort_entries(entries)
+        entries.append(make_entry(cell, mine, reason, wx_rows.get(cell["id"]), day=day, issued_at=issued_at,
+                                  issued_late=late, model=model))
+    if write and entries:
+        store.save(predictions_path, store.merge(existing, entries))
+    return Try(target.isoformat(), store.sort_entries(entries), waiting, skipped)
+
+
+def status(tried: Try) -> int:
+    """The exit status of a try: 4 if some cell was left for the next try, 3 if a gap was recorded, else 0."""
+    if tried.waiting:
+        return EXIT_NOT_READY
+    return EXIT_GAPS if any(e["gap"] for e in tried.entries) else 0
+
+
+def run(now=None, *, get: Callable | None = None, sleep: Callable[[float], None] | None = None,
+        final: bool | None = None, **options) -> int:
+    """`issue` for `now` and return its exit status (0, `EXIT_GAPS`, or `EXIT_NOT_READY`)."""
+    return status(issue(now, get=get, sleep=sleep, final=final, **options))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Issue today's PM2.5 forecast for the 12 grid cells.")
+    ap = argparse.ArgumentParser(description="Issue tomorrow's PM2.5 forecast for the 12 grid cells.")
     ap.add_argument("--now", help="pretend it is this ISO time (needs a UTC offset); default: the real time")
     ap.add_argument("--out", default=str(PREDICTIONS_PATH), help="predictions file to update")
     ap.add_argument("--model", default=str(MODEL_PATH), help="frozen model file (read only)")
+    ap.add_argument("--final", action="store_true",
+                    help="this is the day's last try: record a gap for a cell that is not ready "
+                         "(default: only from 21:00 Tehran time)")
+    ap.add_argument("--dry-run", action="store_true", help="fetch and print the entries; write nothing")
     args = ap.parse_args(argv)
     try:
         now = pd.Timestamp(args.now) if args.now else pd.Timestamp.now(tz="UTC")
-        entries = run(now=now, predictions_path=args.out, model_path=args.model)
+        tried = issue(now, predictions_path=args.out, model_path=args.model, final=True if args.final else None,
+                      write=not args.dry_run)
     except (ValueError, OSError) as exc:
         print(f"predict failed: {exc}", file=sys.stderr)
         return 2
-    target = entries[0]["target_date"]
-    stored = [e for e in store.load(args.out) if e["target_date"] == target]
-    gaps = [e for e in stored if e["gap"]]
-    print(f"issued {store.utc_stamp(now)} for {target}: {len(stored) - len(gaps)} forecasts, {len(gaps)} gaps")
+    gaps = [e for e in tried.entries if e["gap"]]
+    verb = "would save" if args.dry_run else "saved"
+    print(f"try {store.utc_stamp(now)} for {tried.target}: {verb} {len(tried.entries) - len(gaps)} forecasts and "
+          f"{len(gaps)} gaps; {tried.skipped} already held a forecast; {len(tried.waiting)} not ready")
+    if args.dry_run:
+        for e in tried.entries:
+            print(json.dumps(e, separators=(",", ":")))
     for e in gaps:
         print(f"  gap {e['cell_id']}: {e['gap_reason']}", file=sys.stderr)
-    return EXIT_GAPS if gaps else 0
+    for cell_id, reason in tried.waiting.items():
+        print(f"  not ready {cell_id}: {reason}", file=sys.stderr)
+    return status(tried)
 
 
 if __name__ == "__main__":

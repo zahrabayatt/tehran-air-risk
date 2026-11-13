@@ -15,6 +15,7 @@ Model version 2: tomorrow's weather.
 
 ### Changed
 
+- The daily workflow now tries four times a day (10:30, 12:30, 14:30 and 16:30 UTC) and saves a square's forecast only when both the CAMS pollutants and tomorrow's ECMWF weather are ready. A saved forecast is never overwritten, a forecast saved after Tehran midnight carries `issued_late`, and each entry stores the weather inputs it used. Exit status 4 means some squares are waiting for the next try. `python -m pipeline.predict --dry-run` prints entries without writing.
 - The training rows now start on 2024-03-15 (4,968 training, 2,208 selection, 4,368 held-out rows).
 
 ## 1.0.1 - 2026-11-04

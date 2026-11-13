@@ -121,3 +121,7 @@ def test_readme_and_data_card_numbers_match_the_profile():
     assert dropped in read("docs/DATA_CARD.md")
     assert "44 by 36 km" in read("README.md") and "44 by 36 km" in read("docs/DATA_CARD.md")
     assert "above 35.4" in read("README.md")
+
+
+def test_daily_cron_tries_four_times():
+    assert "cron: '30 10,12,14,16 * * *'" in read(".github/workflows/daily.yml")

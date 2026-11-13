@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from pipeline.fetch import ATTEMPTS, TIMEOUT_S, FetchError, _parse, _request
+from pipeline.fetch import ATTEMPTS, TIMEOUT_S, FetchError, _collapse_duplicates, _parse, _request
 from pipeline.grid import CELLS
 
 SINGLE_RUNS_URL = "https://single-runs-api.open-meteo.com/v1/forecast"
@@ -46,12 +46,15 @@ class RunNotAvailable(FetchError):
 
 
 def fetch_run(cells: Sequence[dict], run_day: dt.date, *, get: Callable, sleep: Callable[[float], None],
-              attempts: int = ATTEMPTS, timeout: float = TIMEOUT_S) -> pd.DataFrame:
+              attempts: int = ATTEMPTS, timeout: float = TIMEOUT_S, deadline: float | None = None,
+              clock: Callable[[], float] = time.monotonic) -> pd.DataFrame:
     """The IFS 00 UTC run of `run_day` for `cells`: `cell_id`, `time_utc` and the weather variables.
 
     One row per cell and forecast hour (48 per cell). Retries 429, 5xx and network errors with
     `pipeline.fetch`'s backoff; raises `FetchError` when retries run out and `RunNotAvailable`
-    (a `FetchError`) when the API says the run does not exist.
+    (a `FetchError`) when the API says the run does not exist. `deadline` (a reading of `clock`)
+    is the daily run's time budget, as in `pipeline.fetch`. A repeated hour with the same values
+    collapses to one row; a repeat that disagrees raises `FetchError`.
     """
     cells = list(cells)
     params = {"latitude": ",".join(str(c["lat"]) for c in cells),
@@ -63,13 +66,14 @@ def fetch_run(cells: Sequence[dict], run_day: dt.date, *, get: Callable, sleep: 
         return get(url, params=params, timeout=timeout)
 
     try:
-        frames = _request(timed_get, sleep, SINGLE_RUNS_URL, params, len(cells), WEATHER_VARS, attempts)
+        frames = _request(timed_get, sleep, SINGLE_RUNS_URL, params, len(cells), WEATHER_VARS, attempts,
+                          deadline, clock)
     except FetchError as exc:
         if "refused the request with HTTP 400" in str(exc):
             raise RunNotAvailable(str(exc)) from exc
         raise
-    return pd.concat([f.assign(cell_id=c["id"]) for c, f in zip(cells, frames)],
-                     ignore_index=True)[["cell_id", "time_utc", *WEATHER_VARS]]
+    out = pd.concat([f.assign(cell_id=c["id"]) for c, f in zip(cells, frames)], ignore_index=True)
+    return _collapse_duplicates(out, WEATHER_VARS, SINGLE_RUNS_URL)[["cell_id", "time_utc", *WEATHER_VARS]]
 
 
 # lab:weather_inputs

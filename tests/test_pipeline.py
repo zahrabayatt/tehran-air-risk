@@ -19,11 +19,12 @@ import pytest
 from pipeline import fetch, fill_outcomes, predict, store
 from pipeline.fetch import AIR_QUALITY_URL, FORECAST_URL, POLLUTANTS, WEATHER, FetchError, fetch_hourly
 from pipeline.grid import CELLS
+from pipeline.weather import SINGLE_RUNS_URL, WEATHER_VARS, WX_FEATURES, RunNotAvailable
 
 ROOT = Path(__file__).resolve().parent.parent
-# Version 1's file: the daily pipeline does not build weather inputs yet (a later task), so its
-# tests keep running against the five-feature model that it can compute.
-MODEL_PATH = ROOT / "tests" / "fixtures" / "model_v1.json"
+MODEL_PATH = ROOT / "model" / "model.json"                 # version 2: pollutants, today's weather, tomorrow's forecast
+# compare_live (the live-vs-history measurement) only builds today's inputs, so its test keeps a version 1 model on purpose.
+MODEL_V1_PATH = ROOT / "tests" / "fixtures" / "model_v1.json"
 LIVE_URL = predict.LIVE_FORECAST_URL
 CELL_IDS = [c["id"] for c in CELLS]
 BY_COORD = {(str(c["lat"]), str(c["lon"])): c["id"] for c in CELLS}
@@ -51,25 +52,28 @@ class FakeApi:
 
     `pm25(cell_id, ts)` gives PM2.5; `fail(kind, cell_ids)` returns True to answer HTTP 500;
     `drop(kind, cell_id, ts)` removes a stamp from that cell's block; `null(kind, cell_id, name, ts)`
-    makes a value null. kind is "air", "hf" or "live".
+    makes a value null. kind is "air", "hf", "live" or "single" (the Single Runs API: 48 hours from
+    00:00 UTC of the requested run, boundary layer height included). `single_status(ids)` may answer
+    another HTTP status for the run request (400 = the run is not published yet).
     """
 
     def __init__(self, pm25=default_pm25, fail=None, drop=None, null=None, duplicate_stamps=False,
-                 duplicate_shift=0.0):
+                 duplicate_shift=0.0, single_status=None):
         self.pm25, self.fail, self.drop, self.null = pm25, fail, drop, null
+        self.single_status = single_status
         self.duplicate_stamps, self.duplicate_shift = duplicate_stamps, duplicate_shift
         self.calls = []
 
     @staticmethod
     def kind(url):
-        return {AIR_QUALITY_URL: "air", FORECAST_URL: "hf", LIVE_URL: "live"}[url]
+        return {AIR_QUALITY_URL: "air", FORECAST_URL: "hf", LIVE_URL: "live", SINGLE_RUNS_URL: "single"}[url]
 
     def value(self, name, cell_id, ts):
         if name == "pm2_5":
             return self.pm25(cell_id, ts)
         base = {"pm10": 60, "nitrogen_dioxide": 20, "sulphur_dioxide": 5, "carbon_monoxide": 300,
                 "ozone": 50, "temperature_2m": 12, "relative_humidity_2m": 55, "wind_speed_10m": 8,
-                "precipitation": 0.0}[name]
+                "precipitation": 0.0, "boundary_layer_height": 400}[name]
         return base + 0.1 * ts.hour
 
     def __call__(self, url, params, timeout=None):
@@ -78,9 +82,15 @@ class FakeApi:
         ids = [BY_COORD[(la, lo)] for la, lo in zip(params["latitude"].split(","), params["longitude"].split(","))]
         if self.fail and self.fail(kind, ids):
             return Resp(500, "boom")
-        names = POLLUTANTS if kind == "air" else WEATHER
+        if kind == "single" and self.single_status and self.single_status(ids) != 200:
+            return Resp(self.single_status(ids), {"error": True, "reason": "requested model run is not available"})
+        names = POLLUTANTS if kind == "air" else WEATHER_VARS if kind == "single" else WEATHER
         assert params["hourly"].split(",") == list(names)
-        stamps = pd.date_range(f"{params['start_date']} 00:00", f"{params['end_date']} 23:00", freq="h", tz=UTC)
+        if kind == "single":
+            assert params["forecast_hours"] == 48 and params["models"] == "ecmwf_ifs"
+            stamps = pd.date_range(f"{params['run'][:10]} 00:00", periods=48, freq="h", tz=UTC)
+        else:
+            stamps = pd.date_range(f"{params['start_date']} 00:00", f"{params['end_date']} 23:00", freq="h", tz=UTC)
         blocks = []
         for cell_id in ids:
             keep = [t for t in stamps if not (self.drop and self.drop(kind, cell_id, t))]
@@ -107,23 +117,39 @@ class Sleeper:
         self.calls.append(seconds)
 
 
-def go(tmp_path, api, now=NOW, name="predictions.json"):
+def go(tmp_path, api, now=NOW, name="predictions.json", final=True):
+    """One try; `final=True` by default so the gap tests see the gaps a last try records."""
     path = tmp_path / name
-    new = predict.run(now=now, get=api, sleep=Sleeper(), predictions_path=path, model_path=MODEL_PATH)
-    return new, path
+    tried = predict.issue(now=now, get=api, sleep=Sleeper(), predictions_path=path, model_path=MODEL_PATH,
+                          final=final)
+    return tried.entries, path
 
 
 def saved(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))["entries"]
 
 
-def expected_probability(pm_values, target_date):
+WINDOW_HOURS = (21, 22, 23, *range(0, 9))                   # the 12 pre-cutoff stamps' hours
+TARGET_HOURS = range(24)                                    # tomorrow's 24 run hours cover every UTC hour once
+FAKE_WEATHER = {"wx_temp": 12 + 0.1 * np.mean(TARGET_HOURS), "wx_rh": 55 + 0.1 * np.mean(TARGET_HOURS),
+                "wx_wind": 8 + 0.1 * np.mean(TARGET_HOURS), "wx_precip": 0.1 * sum(TARGET_HOURS),
+                "wx_blh": 400 + 0.1 * np.mean(TARGET_HOURS)}
+
+
+def expected_probability(pm_values, target_date, wx=None):
     """Independent re-derivation from model/model.json: features -> z-scores -> sigmoid."""
     model = json.loads(MODEL_PATH.read_text(encoding="utf-8"))
     doy = pd.Timestamp(target_date).dayofyear
     angle = 2 * np.pi * doy / 365.25
+
+    def window_mean(base):                                  # the fake API gives base + 0.1 * hour
+        return np.mean([base + 0.1 * h for h in WINDOW_HOURS])
+
     feats = {"pm2_5_mean": np.mean(pm_values), "pm2_5_max": np.max(pm_values), "pm2_5_last": pm_values[-1],
-             "season_sin": np.sin(angle), "season_cos": np.cos(angle)}
+             "pm10_mean": window_mean(60), "no2_mean": window_mean(20), "so2_mean": window_mean(5),
+             "co_mean": window_mean(300), "o3_mean": window_mean(50), "temp_mean": window_mean(12),
+             "rh_mean": window_mean(55), "wind_mean": window_mean(8), "precip_sum": 0.1 * sum(WINDOW_HOURS),
+             "season_sin": np.sin(angle), "season_cos": np.cos(angle), **(wx or FAKE_WEATHER)}
     x = np.array([feats[f] for f in model["features"]])
     z = (x - np.array(model["scaling"]["mu"])) / np.array(model["scaling"]["sigma"])
     return float(1 / (1 + np.exp(-(z @ np.array(model["weights"]) + model["bias"]))))
@@ -185,26 +211,28 @@ def test_all_cells_get_a_forecast_with_the_documented_fields(tmp_path):
     model = json.loads(MODEL_PATH.read_text(encoding="utf-8"))
     for e in new:
         assert list(e) == ["issued_at", "target_date", "cell_id", "probability", "predicted", "model_version",
-                           "outcome", "outcome_mean_pm25", "gap", "gap_reason", "cams_forecast_pm25"]
-        assert e["issued_at"] == "2026-11-03T10:05:00Z"
+                           "outcome", "outcome_mean_pm25", "gap", "gap_reason", "cams_forecast_pm25",
+                           "issued_late", "weather"]
+        assert e["issued_at"] == "2026-11-03T10:05:00Z" and e["issued_late"] is False
         assert e["target_date"] == TARGET
         assert e["probability"] == pytest.approx(want, abs=5e-5)     # stored with 4 decimals
         assert e["predicted"] == int(e["probability"] >= 0.5)
-        assert e["model_version"] == model["version"]
+        assert e["model_version"] == model["version"] == 2
         assert e["outcome"] is None and e["outcome_mean_pm25"] is None
         assert e["gap"] is False and e["gap_reason"] is None
         assert e["cams_forecast_pm25"] == pytest.approx(41.5)        # mean of the 24 Tehran target-day hours
     assert saved(path) == new
     assert [(e["target_date"], e["cell_id"]) for e in new] == sorted((e["target_date"], e["cell_id"]) for e in new)
-    # one air-quality request and one historical-forecast request cover all 12 cells; no live fallback
-    assert len(api.urls("air")) == len(api.urls("hf")) == 1 and api.urls("live") == []
+    # one air-quality, one historical-forecast and one Single Runs request cover all 12 cells; no live fallback
+    assert len(api.urls("air")) == len(api.urls("hf")) == len(api.urls("single")) == 1 and api.urls("live") == []
 
 
 def test_requests_use_the_training_sources(tmp_path):
     api = FakeApi()
     go(tmp_path, api)
-    (air,), (hf,) = api.urls("air"), api.urls("hf")
+    (air,), (hf,), (single,) = api.urls("air"), api.urls("hf"), api.urls("single")
     assert air["domains"] == "cams_global" and hf["models"] == "ecmwf_ifs"
+    assert single["run"] == f"{ISSUE}T00:00" and single["latitude"] == air["latitude"]
     assert air["timezone"] == hf["timezone"] == "GMT"
     assert air["latitude"] == ",".join(str(c["lat"]) for c in CELLS)
 
@@ -282,7 +310,8 @@ def test_retries_then_recovers_from_a_transient_failure(tmp_path):
 
 
 def test_one_cell_failing_does_not_drop_the_others(tmp_path):
-    api = FakeApi(fail=lambda kind, ids: "far-east" in ids)
+    # the weather run is one request for every cell, so only the per-cell pollutant fetches can fail alone
+    api = FakeApi(fail=lambda kind, ids: kind != "single" and "far-east" in ids)
     new, path = go(tmp_path, api)
     cells = by_cell(new)
     assert len(new) == 12
@@ -386,15 +415,16 @@ def test_live_fallback_only_fills_missing_weather_and_keeps_the_historical_value
 
 
 # ------------------------------------------------------------------ rerun and merge (ruling 5)
-def test_rerun_replaces_instead_of_duplicating(tmp_path):
-    api = FakeApi()
-    _, path = go(tmp_path, api)
+def test_saved_forecast_never_overwritten(tmp_path):
+    _, path = go(tmp_path, FakeApi(), final=False)
+    first = saved(path)
+    raw = path.read_text(encoding="utf-8")
     later = pd.Timestamp("2026-11-03T14:00:00Z")
-    new, _ = go(tmp_path, FakeApi(pm25=lambda c, t: 80.0), now=later)
-    entries = saved(path)
-    assert len(entries) == 12
-    assert {e["issued_at"] for e in entries} == {"2026-11-03T14:00:00Z"}
-    assert entries[0]["probability"] > 0.5
+    api = FakeApi(pm25=lambda c, t: 80.0)                       # different numbers on the second try
+    new, _ = go(tmp_path, api, now=later, final=False)
+    assert new == [] and api.calls == []                        # every cell already holds one: no fetch, no change
+    assert saved(path) == first and path.read_text(encoding="utf-8") == raw
+    assert {e["issued_at"] for e in first} == {"2026-11-03T10:05:00Z"}
 
 
 def test_rerun_never_replaces_a_good_entry_with_a_gap(tmp_path):
@@ -413,12 +443,19 @@ def test_rerun_can_replace_a_gap_with_a_good_entry(tmp_path):
 
 
 def test_rerun_mixed_keeps_good_and_upgrades_gaps(tmp_path):
-    _, path = go(tmp_path, FakeApi(fail=lambda k, ids: "far-east" in ids))
-    go(tmp_path, FakeApi(fail=lambda k, ids: "west-tehran" in ids), now=pd.Timestamp("2026-11-03T14:00:00Z"))
+    _, path = go(tmp_path, FakeApi(fail=lambda k, ids: kind_air(k) and "far-east" in ids))
+    api = FakeApi(fail=lambda k, ids: kind_air(k) and "west-tehran" in ids)
+    go(tmp_path, api, now=pd.Timestamp("2026-11-03T14:00:00Z"))
     cells = by_cell(saved(path))
     assert len(cells) == 12 and not cells["far-east"]["gap"] and not cells["west-tehran"]["gap"]
     assert cells["west-tehran"]["issued_at"] == "2026-11-03T10:05:00Z"      # the good one was kept
     assert cells["far-east"]["issued_at"] == "2026-11-03T14:00:00Z"         # the gap was upgraded
+    # only the cell still without a forecast was fetched on the second try
+    assert all(p["latitude"].count(",") == 0 for p in api.urls("air"))
+
+
+def kind_air(kind):
+    return kind != "single"
 
 
 def test_a_new_day_appends_and_old_entries_stay(tmp_path):
@@ -435,7 +472,7 @@ def test_merge_is_idempotent_and_deduplicates_incoming_keys():
     a = {"target_date": TARGET, "cell_id": "x", "gap": False, "issued_at": "t1", "probability": 0.1}
     b = {**a, "issued_at": "t2", "probability": 0.2}
     merged = store.merge([], [a, b])
-    assert len(merged) == 1 and merged[0]["issued_at"] == "t2"
+    assert len(merged) == 1 and merged[0]["issued_at"] == "t1"       # the first saved forecast wins
     assert store.merge(merged, []) == merged
     assert store.merge(merged, merged) == merged
 
@@ -467,6 +504,163 @@ def test_saved_file_format_is_stable_and_small(tmp_path):
 def test_only_the_predictions_file_is_written(tmp_path):
     go(tmp_path, FakeApi())
     assert [p.name for p in tmp_path.iterdir()] == ["predictions.json"]
+
+
+# ------------------------------------------------------------------ daily tries (Task 4)
+def waiting(tmp_path, api, now=NOW, final=False):
+    """One try; returns (the Try, the file's entries)."""
+    path = tmp_path / "predictions.json"
+    tried = predict.issue(now=now, get=api, sleep=Sleeper(), predictions_path=path, model_path=MODEL_PATH, final=final)
+    return tried, (saved(path) if path.exists() else [])
+
+
+def run_status(tmp_path, api, now=NOW, final=None):
+    return predict.run(now=now, get=api, sleep=Sleeper(), predictions_path=tmp_path / "predictions.json",
+                       model_path=MODEL_PATH, final=final)
+
+
+def test_not_ready_saves_nothing_before_final(tmp_path):
+    api = FakeApi(null=lambda kind, c, name, t: c == "north-tehran" and name == "pm2_5" and t.hour == 3 and t.day == 3)
+    tried, entries = waiting(tmp_path, api)
+    assert [e["cell_id"] for e in entries] == sorted(c for c in CELL_IDS if c != "north-tehran")   # eleven saved
+    assert list(tried.waiting) == ["north-tehran"] and "pm2_5" in tried.waiting["north-tehran"]
+    assert predict.status(tried) == predict.EXIT_NOT_READY == 4
+    # a try with nothing ready saves nothing at all (the file is not even created)
+    path = tmp_path / "none.json"
+    nothing = predict.issue(now=NOW, get=FakeApi(fail=lambda k, ids: True), sleep=Sleeper(), predictions_path=path,
+                            model_path=MODEL_PATH, final=False)
+    assert nothing.entries == [] and len(nothing.waiting) == 12 and not path.exists()
+
+
+def test_cams_not_published_yet_waits_with_its_reason(tmp_path):
+    api = FakeApi(drop=lambda kind, c, t: kind == "air" and t >= pd.Timestamp("2026-11-03T06:00:00Z"))
+    tried, entries = waiting(tmp_path, api)
+    assert entries == [] and len(tried.waiting) == 12
+    assert all(r.startswith("CAMS hours up to the cutoff not published yet") for r in tried.waiting.values())
+    final, entries = waiting(tmp_path, api, final=True)
+    assert len(entries) == 12 and all(e["gap"] and e["gap_reason"].startswith("CAMS hours up to the cutoff") for e in entries)
+
+
+def test_partial_weather_waits_then_gaps(tmp_path):
+    # the run is published, but two squares have nothing in it yet
+    api = FakeApi(null=lambda kind, c, name, t: kind == "single" and c in ("far-east", "far-west"))
+    tried, entries = waiting(tmp_path, api)
+    assert sorted(tried.waiting) == ["far-east", "far-west"]
+    assert all(r == "ECMWF 00 UTC run not published yet" for r in tried.waiting.values())
+    assert len(entries) == 10 and all(not e["gap"] for e in entries)
+    assert predict.status(tried) == 4
+    tried, _ = waiting(tmp_path, api, now=pd.Timestamp("2026-11-03T16:30:00Z"), final=True)    # the last try
+    cells = by_cell(saved(tmp_path / "predictions.json"))
+    for cell_id in ("far-east", "far-west"):
+        assert_gap(cells[cell_id], "ECMWF 00 UTC run not published yet")
+    assert sum(e["gap"] for e in cells.values()) == 2
+    assert predict.status(tried) == 3
+    assert cells["west-tehran"]["issued_at"] == "2026-11-03T10:05:00Z"      # the saved ones were not touched
+
+
+def test_one_missing_weather_variable_is_named(tmp_path):
+    api = FakeApi(null=lambda kind, c, name, t: kind == "single" and c == "far-east" and name == "boundary_layer_height")
+    tried, _ = waiting(tmp_path, api)
+    assert "wx_blh" in tried.waiting["far-east"] and tried.waiting["far-east"].startswith("ECMWF")
+
+
+def test_run_not_published_counts_as_not_ready_never_a_permanent_gap(tmp_path):
+    api = FakeApi(single_status=lambda ids: 400)                 # HTTP 400: the 00 UTC run is not out yet
+    tried, entries = waiting(tmp_path, api)
+    assert entries == [] and len(tried.waiting) == 12
+    assert set(tried.waiting.values()) == {"ECMWF 00 UTC run not published yet"}
+    assert len(api.urls("single")) == 1                          # a refused run is not retried
+    assert run_status(tmp_path, api, final=False) == 4
+    assert not (tmp_path / "predictions.json").exists()          # nothing, not even a gap, before the last try
+    assert run_status(tmp_path, api, final=True) == 3
+    assert all(e["gap"] and e["gap_reason"] == "ECMWF 00 UTC run not published yet"
+               for e in saved(tmp_path / "predictions.json"))
+
+
+def test_a_weather_fetch_failure_is_not_ready_with_its_reason(tmp_path):
+    api = FakeApi(fail=lambda kind, ids: kind == "single")
+    tried, entries = waiting(tmp_path, api)
+    assert entries == [] and all("ECMWF" in r and "failed" in r for r in tried.waiting.values())
+
+
+def test_readiness_per_cell():
+    ids = [c["id"] for c in CELLS[:2]]
+    day = pd.Timestamp(ISSUE).date()
+    stamps = predict.window_stamps(day)
+    cams = pd.DataFrame([{"cell_id": c, "time_utc": t, **{n: 1.0 for n in predict.INPUTS}} for c in ids for t in stamps])
+    wx = pd.DataFrame([{"cell_id": c, **{n: 1.0 for n in WX_FEATURES}} for c in ids])
+    assert predict.readiness(cams, wx, CELLS[:2], day) == {ids[0]: None, ids[1]: None}
+    assert predict.readiness(cams, None, CELLS[:2], day) == {c: "ECMWF 00 UTC run not published yet" for c in ids}
+    short = cams[~((cams["cell_id"] == ids[1]) & (cams["time_utc"] == stamps[-1]))]
+    got = predict.readiness(short, wx, CELLS[:2], day)
+    assert got[ids[0]] is None and got[ids[1]].startswith("CAMS hours up to the cutoff not published yet")
+
+
+def test_exit_codes(tmp_path):
+    assert run_status(tmp_path, FakeApi(), final=False) == 0
+    assert run_status(tmp_path, FakeApi(fail=lambda k, ids: True), final=False) == 0      # all twelve already saved
+    other = tmp_path / "b"
+    other.mkdir()
+    assert run_status(other, FakeApi(fail=lambda k, ids: True), final=False) == 4
+    assert run_status(other, FakeApi(fail=lambda k, ids: True), final=True) == 3
+
+
+@pytest.mark.parametrize("utc, final", [
+    ("2026-11-03T10:30:00Z", False),    # 14:00 Tehran
+    ("2026-11-03T16:30:00Z", False),    # 20:00 Tehran: the workflow passes --final for this try
+    ("2026-11-03T17:30:00Z", True),     # 21:00 Tehran
+    ("2026-11-03T20:45:00Z", True),     # 00:15 Tehran the next day: the day has begun
+    ("2026-11-04T03:00:00Z", True),     # 06:30 Tehran, still the same issue day
+])
+def test_final_defaults_to_tehran_nine_pm(tmp_path, utc, final):
+    api = FakeApi(fail=lambda k, ids: True)
+    path = tmp_path / "p.json"
+    tried = predict.issue(now=pd.Timestamp(utc), get=api, sleep=Sleeper(), predictions_path=path, model_path=MODEL_PATH)
+    assert bool(tried.entries) is final and bool(tried.waiting) is not final
+
+
+def test_late_issue_is_marked(tmp_path):
+    on_time, _ = go(tmp_path, FakeApi(), now=pd.Timestamp("2026-11-03T20:30:00Z"), name="a.json")
+    assert all(e["issued_late"] is False for e in on_time)                 # exactly 00:00 Tehran is not later
+    late, path = go(tmp_path, FakeApi(), now=pd.Timestamp("2026-11-03T20:31:00Z"), name="b.json")
+    assert all(e["issued_late"] is True and e["target_date"] == TARGET for e in late)
+    early, _ = go(tmp_path, FakeApi(), now=pd.Timestamp("2026-11-03T16:30:00Z"), name="c.json")
+    assert all(e["issued_late"] is False for e in early)
+    gap, _ = go(tmp_path, FakeApi(fail=lambda k, ids: True), now=pd.Timestamp("2026-11-04T02:00:00Z"), name="d.json")
+    assert all(e["gap"] and e["issued_late"] is True for e in gap)
+
+
+def test_entry_stores_weather_inputs(tmp_path):
+    new, _ = go(tmp_path, FakeApi())
+    for e in new:
+        assert list(e["weather"]) == WX_FEATURES
+        for name, value in e["weather"].items():
+            assert value == pytest.approx(FAKE_WEATHER[name], abs=5e-5)
+    assert new[0]["probability"] == pytest.approx(expected_probability(WINDOW_PM, TARGET), abs=5e-5)
+    # the stored numbers are what the model used: tomorrow's weather changes the probability
+    hot = FakeApi()
+    base = hot.value
+    hot.value = lambda name, cell, ts: base(name, cell, ts) + (200 if name == "boundary_layer_height" else 0)
+    changed, _ = go(tmp_path, hot, name="b.json")
+    assert changed[0]["weather"]["wx_blh"] == pytest.approx(FAKE_WEATHER["wx_blh"] + 200, abs=5e-5)
+    assert changed[0]["probability"] != new[0]["probability"]
+    gap, _ = go(tmp_path, FakeApi(fail=lambda k, ids: True), name="c.json")
+    assert all(e["weather"] is None for e in gap)
+
+
+def test_weather_is_fetched_once_per_try_for_the_cells_still_needing_one(tmp_path):
+    api = FakeApi(null=lambda kind, c, name, t: kind == "single" and c == "far-east")
+    waiting(tmp_path, api)
+    waiting(tmp_path, api, now=pd.Timestamp("2026-11-03T12:30:00Z"))
+    single = api.urls("single")
+    assert len(single) == 2 and single[0]["latitude"].count(",") == 11 and single[1]["latitude"].count(",") == 0
+
+
+def test_workflow_passes_final_on_the_last_cron_try_and_treats_exit_4_as_a_warning():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    block = step_block(text, "Issue today's forecast")
+    assert '"$status" -eq 4' in block and "::warning::" in block
+    assert "--final" in block and "github.event.schedule" in block and "30 16 * * *" in block
 
 
 # ------------------------------------------------------------------ outcomes (ruling 7)
@@ -625,8 +819,8 @@ WORKFLOW = ROOT / ".github" / "workflows" / "daily.yml"
 
 def test_workflow_schedule_commit_scope_and_deploy():
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "cron: '30 13 * * *'" in text and "workflow_dispatch:" in text
-    assert "13:30 UTC" in text and "17:00" in text and "10:00 UTC" not in text
+    assert "cron: '30 10,12,14,16 * * *'" in text and "workflow_dispatch:" in text
+    assert "10:06" in text and "06:24" in text and "20:30 UTC" in text
     assert "python -m pipeline.predict" in text and "python -m pipeline.fill_outcomes" in text
     assert text.count("git add") == 1 and "git add data/predictions.json" in text
     assert "github-actions[bot]" in text
@@ -641,12 +835,12 @@ def test_workflow_schedule_commit_scope_and_deploy():
 
 
 def test_cron_matches_the_schedule_the_lab_displays():
-    """The daily workflow's cron and the Lab's displayed time come from the same 13:30 UTC."""
-    cron = re.search(r"cron: '(\d+) (\d+) \* \* \*'", WORKFLOW.read_text(encoding="utf-8"))
-    minute, hour = int(cron.group(1)), int(cron.group(2))
+    """The Lab displays the first of the daily tries, which is the first hour of the workflow's cron."""
+    cron = re.search(r"cron: '(\d+) ([\d,]+) \* \* \*'", WORKFLOW.read_text(encoding="utf-8"))
+    minute, hour = int(cron.group(1)), int(cron.group(2).split(",")[0])
     config = (ROOT / "web" / "src" / "config.ts").read_text(encoding="utf-8")
     assert re.search(rf"DAILY_RUN_UTC = '{hour:02d}:{minute:02d}'", config)
-    # 13:30 UTC is after the 12:00 Tehran cutoff (08:30 UTC) and after the 00 UTC CAMS run is available.
+    # The first try is after the 12:00 Tehran cutoff (08:30 UTC) and after the ECMWF 00 UTC run (about 06:24 UTC).
     assert (hour, minute) >= (8, 30)
 
 
@@ -716,7 +910,8 @@ def test_a_hanging_api_still_records_a_gap_for_every_cell_within_the_budget(tmp_
         raise requests.Timeout("read timed out")
 
     path = tmp_path / "predictions.json"
-    new = predict.run(now=NOW, get=hang, sleep=clock.sleep, clock=clock, predictions_path=path, model_path=MODEL_PATH)
+    new = predict.issue(now=NOW, get=hang, sleep=clock.sleep, clock=clock, predictions_path=path,
+                        model_path=MODEL_PATH, final=True).entries
     assert len(new) == len(CELLS) and all(e["gap"] for e in new)
     assert {e["cell_id"] for e in saved(path)} == set(CELL_IDS)             # the gaps were written
     assert clock.now <= predict.BUDGET_S + fetch.TIMEOUT_S
@@ -771,7 +966,7 @@ def test_measure_and_profile_section(tmp_path):
     write_hourly(fetch_hourly(CELLS, "2026-10-25", "2026-11-02", get=FakeApi(), sleep=Sleeper()), history_path)
     api = FakeApi(pm25=lambda c, t: 31.0 + t.hour)        # live PM2.5 is 1.0 above the cache everywhere
     result = compare_live.measure(NOW, days=3, get=api, sleep=Sleeper(), history_path=history_path,
-                                  model_path=MODEL_PATH, pause_s=0)
+                                  model_path=MODEL_V1_PATH, pause_s=0)
     pm = {r["variable"]: r for r in result["pollutants_air_quality_vs_cache"]}
     assert pm["pm2_5"]["mean_abs"] == pytest.approx(1.0) and pm["pm2_5"]["max_abs"] == pytest.approx(1.0)
     assert pm["pm10"]["max_abs"] == pytest.approx(0.0)

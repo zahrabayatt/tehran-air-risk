@@ -1,18 +1,22 @@
 name: Daily forecast
 
-# Every day at 13:30 UTC (17:00 in Tehran, well after the 12:00 Tehran cutoff): issue the forecast for
-# tomorrow's Tehran date, fill in outcomes for days that have ended, commit data/predictions.json,
-# then build the site and deploy it to GitHub Pages in this same workflow. (A commit pushed with
-# GITHUB_TOKEN does not trigger other workflows, so the deploy cannot live in a separate one.)
-# The target date comes from Tehran time inside the script, never from the runner's clock, so a
-# late or manually started run still forecasts the right day.
+# Four tries a day, at 10:30, 12:30, 14:30 and 16:30 UTC (14:00 to 20:00 in Tehran, all after the
+# 12:00 Tehran cutoff): issue the forecast for tomorrow's Tehran date, fill in outcomes for days
+# that have ended, commit data/predictions.json, then build the site and deploy it to GitHub Pages in
+# this same workflow. (A commit pushed with GITHUB_TOKEN does not trigger other workflows, so the
+# deploy cannot live in a separate one.) The target date comes from Tehran time inside the script,
+# never from the runner's clock, so a late or manually started run still forecasts the right day.
 #
-# Why 13:30 UTC: in the one observation so far (2026-11-04), Open-Meteo published the 00 UTC CAMS run
-# about 9.7 hours after its start (docs/DATA_PROFILE.md, "Live vs history"), and live inputs matched the history the
-# model was trained on when fetched at 13:30-13:36 UTC. An earlier time left only a thin margin.
+# Why four tries: a forecast needs two sources. Open-Meteo's metadata shows the CAMS 00 UTC run is
+# ready about 10:06 UTC (10.1 hours after it starts) and the ECMWF 00 UTC run about 06:24 UTC (6.4 hours),
+# so the first try at 10:30 UTC usually has both. A try saves a cell only when both are ready and never
+# changes a saved forecast; a cell that is not ready is left for the next try (exit status 4). The
+# last try (16:30 UTC) is told it is final and records a gap with the reason. GitHub has delayed
+# scheduled runs by up to 9.5 hours, and Tehran midnight is 20:30 UTC: a forecast saved after that
+# is marked as made late. Any run from 21:00 Tehran time (17:30 UTC) on is also a final try.
 on:
   schedule:
-    - cron: '30 13 * * *'
+    - cron: '30 10,12,14,16 * * *'
   workflow_dispatch:
 
 permissions:
@@ -44,17 +48,24 @@ jobs:
 
       # The scripts retry each request themselves and stop fetching after a time budget (600 s for
       # predict, 300 s for fill_outcomes), so there is no retry loop here. Exit status 3 means "ran,
-      # but some cells have a gap" (predict) or "could not fetch yet" (fill_outcomes); both are
+      # but some cells have a gap" (predict) or "could not fetch yet" (fill_outcomes); exit status 4
+      # means "some cells are not ready yet, the next try will retry them" (predict). All are
       # expected. The step timeouts are a second limit above those budgets, and continue-on-error
-      # lets the commit step save whatever gaps were already written even if a step is cut off.
+      # lets the commit step save whatever was already written even if a step is cut off.
+      # The 16:30 UTC try is the day's last: it is told so with --final.
       - name: Issue today's forecast
         id: predict
         timeout-minutes: 15
         continue-on-error: true
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
           status=0
-          python -m pipeline.predict || status=$?
+          final=""
+          if [ "$SCHEDULE" = "30 16 * * *" ]; then final="--final"; fi
+          python -m pipeline.predict $final || status=$?
           if [ "$status" -eq 3 ]; then echo "::warning::some cells have no forecast (gaps were recorded)"; status=0; fi
+          if [ "$status" -eq 4 ]; then echo "::warning::some cells are not ready yet; the next try retries them"; status=0; fi
           if [ "$status" -ne 0 ]; then echo "::error::predict failed with status $status"; fi
           exit "$status"
 

@@ -146,3 +146,23 @@ def test_data_page_numbers_agree_with_the_profile_and_model():
 
 def test_no_em_dashes_in_the_exporter():
     assert "—" not in (ROOT / "training" / "export_site.py").read_text(encoding="utf-8")
+
+
+def test_lab_today_has_eight_browsable_training_days():
+    t = load("lab-today")
+    days = t["days"]
+    assert len(days) == 8
+    assert all(len(d["x"]) == 19 for d in days)
+    assert {d["y"] for d in days} == {0, 1}
+    assert sum(d["y"] for d in days) == 4
+    assert [d["x"][t["features"].index("pm2_5_mean")] for d in days] == sorted(
+        d["x"][t["features"].index("pm2_5_mean")] for d in days)
+    # the inputs are in the model's feature order: a day's rows match the exported training rows
+    rows = load("lab-rows")["train"]
+    cols = rows["cols"]
+    for d in days:
+        match = [r for r in rows["rows"] if r[cols.index("doy")] == d["doy"] and r[cols.index("y")] == d["y"]
+                 and r[cols.index("cell")] == 11
+                 and abs(r[cols.index("pm2_5_mean")] - d["x"][t["features"].index("pm2_5_mean")]) < 1e-2]
+        assert match, d["doy"]
+    assert t["features"] == model_json()["features"]

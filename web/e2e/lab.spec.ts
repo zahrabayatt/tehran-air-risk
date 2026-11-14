@@ -159,7 +159,29 @@ test('Lab step 10 shows all 19 inputs and the loop against the dot product', asy
   await expect(page.locator('#race')).toContainText(`${times}×`);
   await page.getByRole('button', { name: /Dot product/ }).click();
   await page.locator('#go').click();
-  await expect(page.locator('#sumNote')).toContainText(`about ${Math.round(today.p * 10)} in 10`, { timeout: 5000 });
+  const d = today.days[0];
+  const z = d.x.reduce((s: number, v: number, j: number) => s + ((v - today.mu[j]) / today.sigma[j]) * today.w[j], today.b);
+  const p = 1 / (1 + Math.exp(-z));
+  await expect(page.locator('#sumNote')).toContainText(`about ${Math.round(p * 10)} in 10`, { timeout: 5000 });
+  await expect(page.locator('#sumNote')).toContainText(d.y ? 'unhealthy' : 'OK');
+});
+
+test('Lab step 10 next day changes the day and the sum', async ({ page }) => {
+  await page.goto('#/lab/10');
+  await expect(page.locator('#adLab')).toContainText('Day 1 of 8');
+  const before = await page.locator('#xc').innerText();
+  await page.locator('#go').click();
+  await expect(page.locator('#sumNote')).toContainText('in 10', { timeout: 5000 });
+  const sum1 = await page.locator('#sum').innerText();
+  await page.locator('#nextAd').click();
+  await expect(page.locator('#adLab')).toContainText('Day 2 of 8');
+  expect(await page.locator('#xc').innerText()).not.toBe(before);
+  await expect(page.locator('#sumNote')).toHaveText('press Run');
+  await page.locator('#go').click();
+  await expect(page.locator('#sumNote')).toContainText('in 10', { timeout: 5000 });
+  expect(await page.locator('#sum').innerText()).not.toBe(sum1);
+  await page.locator('#prevAd').click();
+  await expect(page.locator('#adLab')).toContainText('Day 1 of 8');
 });
 
 test('Lab step 11 races four learning rates and flags the one that goes up', async ({ page }) => {

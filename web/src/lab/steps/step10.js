@@ -5,8 +5,6 @@
 import katex from 'katex';
 import { fmt, num, sigmoid } from '../kit.js';
 
-const THRESHOLD = 35.4;
-
 export const html = `<div id="main" class="skel" aria-busy="true">
     <div class="skonly" aria-hidden="true">
       <section class="card"><div class="sk" style="width:90px;height:14px;margin-bottom:12px"></div><div class="sk" style="width:40%;height:30px;margin-bottom:12px"></div><div class="sk" style="width:70%;height:16px;margin-bottom:22px"></div>
@@ -17,7 +15,7 @@ export const html = `<div id="main" class="skel" aria-busy="true">
       <span class="tag">Step 10 of 17</span>
       <h2 id="st">Vectorization</h2>
       <p class="goal">With many inputs, a prediction is many multiplications added up. A loop does them one by one; a dot product does them all at once, with the same answer, much faster.</p>
-      <figure class="plot"><div class="phead"><b id="vhead">One day, many inputs</b><div class="hctl"><span id="adLab" class="adlab"></span></div></div>
+      <figure class="plot"><div class="phead"><b id="vhead">One day, many inputs</b><div class="hctl"><button id="prevAd" class="ibtn" type="button" aria-label="Previous day">‹</button><span id="adLab" class="adlab"></span><button id="nextAd" class="ibtn" type="button" aria-label="Next day">›</button></div></div>
    <div class="vec"><div class="vrow"><span class="vname">x <small>this day, scaled</small></span><div class="cells" id="xc"></div></div>
     <div class="vrow"><span class="vname">w <small>weights</small></span><div class="cells" id="wc"></div></div>
     <div class="vrow"><span class="vname">w × x</span><div class="cells" id="pc"></div></div></div>
@@ -61,7 +59,11 @@ const INFO = {
   wx_blh: ['Forecast air ceiling', 'm'],
 };
 const fm = (v, d = 2) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
-const dateOf = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+const dateOf = (doy) => {
+  const d = new Date(Date.UTC(2025, 0, 1));
+  d.setUTCDate(doy);
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+};
 
 /** Runs the step. `ctx.load(name)` gives its data; the returned function stops everything it started. */
 export function mount(ctx) {
@@ -71,6 +73,8 @@ export function mount(ctx) {
     NAMES = [],
     UNITS = [],
     X = [],
+    DAYS = [],
+    ai = 0,
     mode = 'loop',
     busy = false,
     live = true;
@@ -82,9 +86,11 @@ export function mount(ctx) {
   const n = () => V.features.length;
 
   function cells() {
+    const d = DAYS[ai];
+    X = d.x.map((v, j) => (v - V.mu[j]) / V.sigma[j]);
     const x = X;
-    $('adLab').textContent = `${V.cell}, ${dateOf(V.day)}`;
-    $('xc').innerHTML = x.map((v, j) => `<div class="cell" id="x${j}">${fm(v)}<small>${NAMES[j]}: ${fmt(V.x[j], Math.abs(V.x[j]) >= 100 ? 0 : 1)}${UNITS[j] ? ' ' + UNITS[j] : ''}</small></div>`).join('');
+    $('adLab').textContent = `Day ${ai + 1} of ${DAYS.length} · ${dateOf(d.doy)}`;
+    $('xc').innerHTML = x.map((v, j) => `<div class="cell" id="x${j}">${fm(v)}<small>${NAMES[j]}: ${fmt(d.x[j], Math.abs(d.x[j]) >= 100 ? 0 : 1)}${UNITS[j] ? ' ' + UNITS[j] : ''}</small></div>`).join('');
     $('wc').innerHTML = V.w.map((v, j) => `<div class="cell" id="w${j}">${fm(v, 3)}<small>${NAMES[j]}</small></div>`).join('');
     $('pc').innerHTML = x.map((v, j) => `<div class="cell prod" id="p${j}">${fm(v * V.w[j])}<small>${fm(v)} × ${fm(V.w[j], 3)}</small></div>`).join('');
     $('sum').textContent = '…';
@@ -132,14 +138,14 @@ export function mount(ctx) {
     const z = total + V.b,
       p = sigmoid(z);
     $('sum').textContent = fm(z);
-    const real = typeof V.actual === 'number' ? ` Tomorrow was ${V.actual > THRESHOLD ? 'unhealthy' : 'OK'}.` : '';
+    const real = ` Tomorrow was ${DAYS[ai].y ? 'unhealthy' : 'OK'}.`;
     $('sumNote').textContent = `(b = ${fm(V.b)} added). Through the sigmoid: a chance of ${fmt(p, 2)}, about ${Math.round(p * 10)} in 10.${real}`;
     busy = false;
   }
   function shapes(rows) {
     const nn = n();
     $('vhead').textContent = `One day, ${nn} inputs`;
-    $('vnote').textContent = `Weights and scaling are version 2's, the model live today, trained on these ${nn} inputs. The highest hour of PM2.5 gets the largest weight: a sharp morning peak says more about tomorrow than the day's average.`;
+    $('vnote').textContent = `Weights and scaling are version 2's, the model live today, trained on these ${nn} inputs. Eight West Tehran training days, from clean to dirty. The highest hour of PM2.5 gets the largest weight: a sharp morning peak says more about tomorrow than the day's average.`;
     $('shnote').textContent = `The same dot product for every day is one matrix product: ${num(rows)} rows of ${nn} numbers times ${nn} weights gives ${num(rows)} values of z, and the sigmoid turns each into a chance.`;
     $('shapes').innerHTML = `<div class="mat" style="width:120px;height:150px">X<br>${num(rows)} × ${nn}</div><span class="op">·</span><div class="mat" style="width:34px;height:120px">w<br>${nn}</div><span class="op">+ b =</span><div class="mat" style="width:50px;height:150px">z<br>${num(rows)}</div>`;
     const v = V.vec,
@@ -149,6 +155,13 @@ export function mount(ctx) {
    <div class="rrow"><span>NumPy @</span><div class="rbar"><i style="width:${r.toFixed(2)}%" class="fast"></i></div><b>${fmt(v.numpy_ms, 2)} ms</b></div>
    <p class="speed"><b>${Math.round(v.loop_ms / v.numpy_ms)}×</b> faster, the same result.</p>`;
   }
+  const go = (dir) => {
+    if (!V || busy) return;
+    ai = (ai + dir + DAYS.length) % DAYS.length;
+    cells();
+  };
+  on($('prevAd'), 'click', () => go(-1));
+  on($('nextAd'), 'click', () => go(1));
   on($('go'), 'click', () => {
     if (V) run();
   });
@@ -172,7 +185,7 @@ export function mount(ctx) {
     V = t;
     NAMES = t.features.map((f) => (INFO[f] ? INFO[f][0] : f));
     UNITS = t.features.map((f) => (INFO[f] ? INFO[f][1] : ''));
-    X = t.x.map((v, j) => (v - t.mu[j]) / t.sigma[j]);
+    DAYS = t.days;
     const main = $('main');
     main.classList.remove('skel');
     main.setAttribute('aria-busy', 'false');

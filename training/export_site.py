@@ -141,8 +141,23 @@ def build_rows(train: pd.DataFrame, selection: pd.DataFrame, model: dict, cells:
 
 # --- lab-today.json ---------------------------------------------------------------
 
+def pick_days(train: pd.DataFrame, features: list[str], cell: str = TODAY_CELL) -> list[dict]:
+    """Eight training days of `cell` for the step 10 browser: four OK days spread from clean to dirty
+    and four followed by an unhealthy day, sorted by the day's average PM2.5."""
+    rows = train[train["cell_id"] == cell]
+    pos = rows[rows["y"] == 1]
+    neg = rows[rows["y"] == 0].sort_values("pm2_5_mean", kind="stable")
+    n = len(neg)
+    step = max(1, len(pos) // 4)
+    chosen = [neg.iloc[int(n * 0.2)], neg.iloc[int(n * 0.6)], neg.iloc[int(n * 0.9)], neg.iloc[n - 3]]
+    chosen += [pos.iloc[i] for i in range(0, len(pos), step)][:4]
+    chosen.sort(key=lambda r: r["pm2_5_mean"])
+    return [{"x": [round(float(r[f]), 4) for f in features], "y": int(r["y"]),
+             "doy": int(_day(r["target_date"]).dayofyear)} for r in chosen]
+
+
 def build_today(labels: pd.DataFrame, held: pd.DataFrame, model: dict,
-                cell: str = TODAY_CELL) -> dict:
+                cell: str = TODAY_CELL, train: pd.DataFrame | None = None) -> dict:
     """Model version 2 on the newest finished `cell` row of the held-out year."""
     if model.get("version") != 2:
         raise ValueError("lab-today needs model version 2")
@@ -168,7 +183,8 @@ def build_today(labels: pd.DataFrame, held: pd.DataFrame, model: dict,
                      "calib": {"bins": held_p["bins"], "counts_y1": held_p["counts_y1"],
                                "counts_y0": held_p["counts_y0"]}},
             "vec": model["vectorization"],
-            "actual": round(float(means[(cell, target)]), 1)}
+            "actual": round(float(means[(cell, target)]), 1),
+            **({"days": pick_days(train, features)} if train is not None else {})}
 
 
 # --- data-page.json ---------------------------------------------------------------
@@ -226,7 +242,7 @@ def main() -> int:
         "lab-timing.json": write_json(DATA_DIR / "lab-timing.json",
                                       build_timing(hourly, labels, WEATHER_CACHE)),
         "lab-rows.json": write_json(DATA_DIR / "lab-rows.json", build_rows(train, selection, model, cells)),
-        "lab-today.json": write_json(DATA_DIR / "lab-today.json", build_today(labels, held, model)),
+        "lab-today.json": write_json(DATA_DIR / "lab-today.json", build_today(labels, held, model, train=train)),
         "data-page.json": write_json(DATA_DIR / "data-page.json", build_data_page(profile, history, model)),
     }
     print("site data:", sizes)

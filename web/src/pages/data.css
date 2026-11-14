@@ -1,84 +1,102 @@
-/* Data page. Layout and copy follow docs/design/AirData.dc.html; colours come from theme/tokens.css. */
+/* Data page. Layout and words follow docs/design/AirDataV2.html; the base colours come from theme/tokens.css. */
 
-.data-page { gap: 40px; padding-top: 40px; }
-.data-page h2 { margin: 0 0 4px; font-size: clamp(22px, 3vw, 30px); font-weight: 700; letter-spacing: -0.025em; }
-.data-page .card h2 { font-size: 17px; font-weight: 600; letter-spacing: 0; margin: 0; }
-.data-section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.data-page .small { max-width: 800px; }
-.data-page .mono { font-family: 'Geist Mono Variable', ui-monospace, monospace; }
+.data-page {
+  --t0: #3FA374;
+  --t1: #E8833A;
+  gap: 20px;
+}
+.t.dark .data-page {
+  --t0: #2F8A60;
+  --t1: #C9692A;
+}
+
+.data-page h1 { overflow-wrap: break-word; }
+.data-page .card { gap: 0; }
+.data-page .card h2 { margin: 0 0 4px; }
+.data-page .sub { margin: 0 0 18px; color: var(--mut); font-size: 15px; max-width: 720px; }
 .data-page .muted { color: var(--mut); }
+.data-page ul { margin: 0; padding: 0; list-style: none; }
+.data-page .note { color: var(--mut); font-size: 14px; margin: 12px 0 0; }
 
-.data-facts {
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 24px;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-  padding: 24px 0;
+.data-page .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.data-page .fact { background: var(--sf); border: 1px solid var(--rule); border-radius: 16px; padding: 16px 18px; min-width: 0; }
+.data-page .fact b { display: block; font-size: 24px; letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere; }
+.data-page .fact span { color: var(--mut); font-size: 14px; }
+
+/* Reliability check */
+.data-page .calib { display: grid; gap: 4px; margin-top: 6px; }
+.data-page .cr { display: grid; grid-template-columns: 1fr 1fr 110px; gap: 14px; align-items: center; font-size: 14px; padding: 6px 10px; border-radius: 10px; }
+.data-page .cr.head { color: var(--mut); font-size: 13px; padding-bottom: 0; }
+.data-page .cr.off { background: var(--warns); }
+.data-page .cr .n { font-size: 13px; text-align: right; font-family: 'Geist Mono Variable', ui-monospace, monospace; color: var(--mut); }
+.data-page .cr small { color: var(--mut); }
+.data-page .cr .lbl { display: none; }
+.data-page .dots { display: inline-flex; gap: 4px; vertical-align: middle; margin-right: 8px; }
+.data-page .dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--rule); flex: none; }
+.data-page .dots i.on { background: var(--t1); }
+.data-page .cr.off .dots i:not(.on) { background: var(--sf); }
+.data-page .flag { background: var(--warns); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 14px 0 0; }
+
+.data-page details { margin-top: 12px; }
+.data-page summary { cursor: pointer; color: var(--ac); font-weight: 500; font-size: 15px; }
+
+/* Months and squares */
+.data-page .pick { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; font-size: 15px; }
+.data-page .pick select { min-height: 44px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 10px; background: var(--sf); color: var(--ink); }
+.data-page .months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; height: 170px; margin-top: 8px; }
+.data-page .mo { display: flex; flex-direction: column; align-items: center; height: 100%; gap: 4px; font-size: 12px; color: var(--mut); min-width: 0; }
+.data-page .mo b { color: var(--ink); font-size: 12px; font-weight: 600; }
+.data-page .mo .track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.data-page .mo i { display: block; width: 100%; border-radius: 5px 5px 2px 2px; background: var(--t1); min-height: 2px; }
+.data-page .sq { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.data-page .sq li { border-radius: 10px; padding: 8px 10px; font-size: 13px; border: 1px solid var(--rule); min-width: 0; }
+.data-page .sq b { display: block; font-size: 17px; }
+
+/* Days used */
+.data-page .time { display: grid; grid-template-columns: 14fr 6fr 12fr; gap: 6px; margin-bottom: 10px; }
+.data-page .time > div { border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.35; min-width: 0; }
+.data-page .time b { display: block; font-size: 15px; }
+.data-page .time span { color: var(--mut); }
+.data-page .t-learn { background: var(--acs); }
+.data-page .t-choose { background: color-mix(in srgb, var(--ac) 12%, transparent); }
+.data-page .t-test { background: var(--warns); }
+
+.data-page .steps { display: grid; gap: 10px; }
+.data-page .step { display: grid; grid-template-columns: 340px 1fr 90px; gap: 16px; align-items: center; font-size: 15px; }
+.data-page .step small { display: block; color: var(--mut); font-size: 13px; }
+.data-page .bar { height: 12px; border-radius: 6px; background: var(--rule); overflow: hidden; }
+.data-page .bar i { display: block; height: 100%; background: var(--ac); border-radius: 6px; }
+.data-page .step .n { text-align: right; font-family: 'Geist Mono Variable', ui-monospace, monospace; }
+
+.data-page .limits li { margin: 6px 0; }
+.data-page .limits { padding-left: 0; }
+
+.data-page .sources { border-collapse: collapse; width: 100%; font-size: 14px; margin-top: 10px; }
+.data-page .sources th, .data-page .sources td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.data-page .sources th { color: var(--mut); font-weight: 500; }
+
+@media (max-width: 860px) {
+  .data-page .facts { grid-template-columns: 1fr 1fr; }
+  .data-page .step { grid-template-columns: 1fr 70px; }
+  .data-page .step .bar { grid-column: 1 / -1; order: 3; }
+  .data-page .time { grid-template-columns: 1fr; }
+  .data-page .sq { grid-template-columns: 1fr 1fr; }
+  .data-page .months { height: 130px; gap: 3px; }
+  .data-page .mo b { font-size: 10px; }
+  .data-page .cr.head { display: none; }
+  .data-page .cr { grid-template-columns: 1fr auto; row-gap: 6px; }
+  .data-page .cr > span:nth-child(1), .data-page .cr > span:nth-child(2) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+  .data-page .cr > .n { grid-column: 1 / -1; text-align: left; }
+  .data-page .cr .lbl { display: block; width: 100%; font-size: 12px; color: var(--mut); }
+  .data-page .cr .dots { margin-right: 0; }
+  .data-page .sources thead { display: none; }
+  .data-page .sources, .data-page .sources tbody, .data-page .sources tr, .data-page .sources td { display: block; }
+  .data-page .sources td { border-bottom: 0; padding: 2px 0; }
+  .data-page .sources tr { border-bottom: 1px solid var(--rule); padding: 8px 0; }
+  .data-page .sources td::before { content: attr(data-label) ': '; color: var(--mut); }
 }
-.data-facts dt { font-size: 14px; color: var(--mut); }
-.data-facts dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
-
-.splitbar { display: flex; height: 56px; border-radius: 4px; overflow: hidden; font-size: 14px; font-weight: 500; }
-.splitbar__part { flex-basis: 0; display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; padding: 0 4px; }
-.splitbar__part--train { background: var(--ac); color: var(--on); }
-.splitbar__part--selection { background: var(--acs); color: var(--ink); }
-.splitbar__part--held_out { background: var(--ink); color: var(--bg); }
-
-.data-two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 32px; align-items: start; }
-
-.funnel { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
-.funnel__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 16px;
-  row-gap: 6px;
-  align-items: baseline;
-}
-.funnel__label { display: flex; flex-direction: column; gap: 2px; font-weight: 500; }
-.funnel__note { color: var(--mut); font-size: 14px; font-weight: 400; }
-.funnel__count { text-align: right; font-size: 18px; }
-.funnel__track { grid-column: 1 / -1; display: block; height: 18px; background: var(--rule); border-radius: 2px; }
-.funnel__bar { display: block; height: 18px; background: var(--ac); border-radius: 2px; }
-
-.data-pairs { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; font-size: 15px; }
-.data-pairs dt { color: var(--mut); }
-.data-pairs dd { margin: 0; text-align: right; }
-
-.ratebar { display: grid; grid-template-columns: minmax(60px, 1fr) 56px; gap: 12px; align-items: center; }
-.ratebar__track { display: block; height: 16px; background: var(--rule); border-radius: 2px; }
-.ratebar__fill { display: block; height: 16px; background: var(--ac); border-radius: 2px; min-width: 2px; }
-.ratebar__value { text-align: right; font-size: 14px; }
-
-.data-scroll { overflow-x: auto; background: var(--sf); border: 1px solid var(--rule); border-radius: 20px; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 15px; }
-.data-scroll .data-table { min-width: 560px; }
-.data-table th {
-  text-align: left;
-  color: var(--mut);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--rule);
-}
-.data-table td,
-.data-table tbody th { padding: 12px 16px; border-bottom: 1px solid var(--rule); }
-.data-table tbody th { color: var(--ink); font-size: 15px; font-weight: 500; }
-.data-table tbody tr:last-child td,
-.data-table tbody tr:last-child th { border-bottom: 0; }
-.data-table .num { text-align: right; }
-.data-table td.mono { font-size: 14px; }
-
-.data-limits { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; max-width: 800px; }
-
-@media (max-width: 900px) {
-  .data-two { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 700px) {
-  /* Narrow tables fit the phone; one that is still too wide scrolls inside its own box. */
-  .data-scroll .data-table { min-width: 0; }
-  .data-table th, .data-table td, .data-table tbody th { padding: 10px 8px; }
-  .ratebar { grid-template-columns: minmax(20px, 1fr) 44px; gap: 6px; }
-  .splitbar { font-size: 12px; }
+@media (max-width: 480px) {
+  .data-page.page { padding-left: 16px; padding-right: 16px; }
+  .data-page .card { padding: 18px 16px; }
+  .data-page .fact b { font-size: 20px; }
 }

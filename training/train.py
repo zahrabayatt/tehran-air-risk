@@ -347,8 +347,7 @@ def main(argv=None) -> int:
     check_spike = ap.parse_args(argv).check_spike
 
     from pipeline.fetch import read_hourly
-    from training.export_data import (build_history, build_profile, build_sample,
-                                      write_json)
+    from training.export_data import (build_history, build_profile, write_json)
     from training.features import build_dataset, labelled_windows
     from training.labels import daily_labels
 
@@ -383,7 +382,6 @@ def main(argv=None) -> int:
 
     sizes = {
         "model/model.json": write_json(MODEL_PATH, model),
-        "sample.json": write_json(DATA_DIR / "sample.json", build_sample(train, labels)),
         "history.json": write_json(DATA_DIR / "history.json", build_history(labels)),
         "profile.json": write_json(DATA_DIR / "profile.json", build_profile(
             hourly, labels, windows, df,

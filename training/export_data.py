@@ -1,7 +1,5 @@
 """Small JSON files for the site, all computed from the cached history (none hand-typed).
 
-- sample.json: real training rows of one cell for the Lab's in-browser examples. It is built
-  from the training split alone, so the Lab cannot hint at selection or held-out days.
 - history.json: positive rates by year and calendar month, per cell and pooled, and the daily
   number of positive cells, from every labelled day.
 - profile.json: facts for the Data page (counts, missing hours, splits, sources).
@@ -14,7 +12,6 @@ import json
 import math
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from pipeline.fetch import POLLUTANTS, WEATHER
@@ -22,11 +19,7 @@ from pipeline.grid import CELLS
 from training.features import CUTOFF, FEATURES, INPUTS, on_standard_time
 from training.labels import MIN_HOURS, THRESHOLD
 
-# West Tehran is the one cell where both classes are common (46% of days above the threshold
-# over the whole history; the other cells are mostly below 15%), so a year of it shows both.
 WEATHER_FIRST_TARGET = "2024-03-15"   # the first run is 2024-03-14, so the first target day
-SAMPLE_CELL = "west-tehran"
-SAMPLE_DAYS = 365
 _NAMES = {c["id"]: c["name"] for c in CELLS}
 _ORDER = {c["id"]: i for i, c in enumerate(CELLS)}
 
@@ -48,54 +41,6 @@ def _r(x: float, digits: int = 4) -> float:
 
 def _cells(frame: pd.DataFrame) -> list[str]:
     return sorted(frame["cell_id"].unique(), key=lambda c: (_ORDER.get(c, len(_ORDER)), c))
-
-
-# --- sample.json ----------------------------------------------------------------
-
-def _latest_run(days: list, n: int) -> int:
-    """Start index of the latest run of n consecutive dates in a sorted list."""
-    ordinals = np.array([d.toordinal() for d in days])
-    for end in range(len(days) - 1, n - 2, -1):
-        if ordinals[end] - ordinals[end - n + 1] == n - 1:
-            return end - n + 1
-    raise ValueError(f"no run of {n} consecutive days")
-
-
-def build_sample(train: pd.DataFrame, labels: pd.DataFrame, cell: str = SAMPLE_CELL,
-                 days: int = SAMPLE_DAYS) -> dict:
-    """The latest `days` consecutive TRAINING issue days of one cell, with raw features.
-
-    Only `train` rows are read for features and labels; `labels` supplies the label-day mean
-    PM2.5 (pm_tomorrow) of those same training target dates.
-    """
-    rows = train[train["cell_id"] == cell].sort_values("day").reset_index(drop=True)
-    start = _latest_run(list(rows["day"]), days)
-    rows = rows.iloc[start:start + days]
-    means = labels[labels["cell_id"] == cell].set_index("date")["mean_pm25"]
-    items = []
-    for _, r in rows.iterrows():
-        item = {"day": str(r["day"]), "target_date": str(r["target_date"]),
-                "pm_today": _r(r["pm2_5_mean"], 3), "pm_tomorrow": _r(means[r["target_date"]], 3),
-                "y": int(r["y"])}
-        item.update({f: _r(r[f], 4) for f in FEATURES})
-        items.append(item)
-
-    months = pd.to_datetime(train["target_date"]).dt.month
-    in_cell = train["cell_id"] == cell
-    train_months = []
-    for m in range(1, 13):
-        pooled, local = train.loc[months == m, "y"], train.loc[in_cell & (months == m), "y"]
-        train_months.append({"month": m,
-                             "pooled_rate": _r(pooled.mean()) if len(pooled) else None,
-                             "pooled_days": int(len(pooled)),
-                             "cell_rate": _r(local.mean()) if len(local) else None,
-                             "cell_days": int(len(local))})
-    return {"cell": cell, "cell_name": _NAMES.get(cell, cell), "split": "train",
-            "rule": f"the latest {days} consecutive training issue days of this cell",
-            "start": items[0]["day"], "end": items[-1]["day"], "days": len(items),
-            "positive_share": _r(np.mean([i["y"] for i in items])),
-            "threshold": THRESHOLD, "features": list(FEATURES),
-            "rows": items, "train_months": train_months}
 
 
 # --- history.json ---------------------------------------------------------------

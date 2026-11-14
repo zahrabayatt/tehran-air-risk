@@ -5,7 +5,7 @@ import { ForecastPage } from './pages/Forecast';
 
 // The Lab (with its equations and code walkthroughs) loads only when its page is opened.
 const LabPage = lazy(() => import('./pages/LabPage').then((m) => ({ default: m.LabPage })));
-// The Data page carries the profile and history files, so it loads only when its page is opened too.
+// The Data page carries its data file, so it loads only when its page is opened too.
 const DataPage = lazy(() => import('./pages/DataPage').then((m) => ({ default: m.DataPage })));
 
 export function App() {

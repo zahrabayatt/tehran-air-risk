@@ -1,475 +1,321 @@
-import { useEffect } from 'react';
-import history from '../../public/data/history.json';
-import profile from '../../public/data/profile.json';
-import { GITHUB_URL } from '../config';
+import { useEffect, useState } from 'react';
+import data from '../../public/data/data-page.json';
 import './data.css';
 
-const AIR_API_URL = 'https://open-meteo.com/en/docs/air-quality-api';
-const EPA_URL = 'https://www.govinfo.gov/content/pkg/FR-2024-03-06/html/2024-02637.htm';
-const THRESHOLD_TEXT = `above ${profile.threshold} μg/m³`;
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
-];
-
 /**
- * The inputs the deployed model reads, in the order of model/model.json. A test compares this list with
- * that file, so the page cannot drift from the model.
+ * The Data page. Layout and words follow docs/design/AirDataV2.html; every number comes from
+ * web/public/data/data-page.json (training/export_site.py), none is typed here.
  */
-export const DEPLOYED_FEATURES = ['pm2_5_mean', 'pm2_5_max', 'pm2_5_last', 'season_sin', 'season_cos'];
 
-const count = (n: number) => n.toLocaleString('en-US');
-
-/** Positive days as a percentage of days, with one decimal. A bare "0%" is only ever a real zero. */
-export function share(positives: number, days: number): string {
-  if (positives === 0) return '0%';
-  const pct = (positives / days) * 100;
-  return pct < 0.05 ? '<0.1%' : `${pct.toFixed(1)}%`;
+interface CalibBin {
+  from: number;
+  to: number;
+  yes: number;
+  no: number;
 }
 
-const DAY_MS = 86_400_000;
-/** Whole days from `start` to `end` inclusive, both "YYYY-MM-DD". */
-const daysBetween = (start: string, end: string) => Math.round((Date.parse(end) - Date.parse(start)) / DAY_MS) + 1;
-const longDate = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' });
+const count = (n: number) => n.toLocaleString('en-US');
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+const MONTH_LETTERS = 'JFMAMJJASOND';
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** A bar for a share of days, scaled to `max` (a fraction); the number beside it carries the meaning, so the bar is hidden from screen readers. */
-function RateBar({ positives, days, max }: { positives: number; days: number; max: number }) {
+/** "Aug 2022" from "2022-08-04". */
+const monthYear = (iso: string) => `${SHORT_MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
+/** "15 Mar 2024" from "2024-03-15". */
+const dayMonthYear = (iso: string) => `${Number(iso.slice(8, 10))} ${monthYear(iso)}`;
+
+/** A share as a number of dots out of ten. */
+export const tenth = (v: number) => Math.min(10, Math.max(0, Math.round(v * 10)));
+
+const wordsFor = (v: number) => {
+  const n = tenth(v);
+  return n === 0 ? 'under 1 in 10' : n === 10 && v < 1 ? 'almost 10 in 10' : `${n} in 10`;
+};
+
+/** Unhealthy air came clearly (more than 5 points) more often than the top of the range the model said. */
+export const isShaded = (c: CalibBin) => c.yes / (c.yes + c.no) > c.to + 0.05;
+
+/** The first and last range, in tenths, where the shaded rows lie ("2 to 9 in 10"). */
+export function cautiousRange(calib: CalibBin[]): { from: number; to: number } | null {
+  const shaded = calib.filter(isShaded);
+  if (shaded.length === 0) return null;
+  return { from: Math.round(shaded[0].from * 10), to: Math.round(shaded[shaded.length - 1].to * 10) };
+}
+
+function Dots({ n }: { n: number }) {
   return (
-    <span className="ratebar">
-      <span className="ratebar__track" aria-hidden="true">
-        <span className="ratebar__fill" style={{ width: `${max > 0 && days > 0 ? (positives / days / max) * 100 : 0}%` }} />
-      </span>
-      <span className="ratebar__value mono">{share(positives, days)}</span>
+    <span className="dots" aria-hidden="true">
+      {Array.from({ length: 10 }, (_, i) => (
+        <i key={i} className={i < n ? 'on' : ''} />
+      ))}
     </span>
   );
 }
 
+const rangeLabel = (c: CalibBin) =>
+  c.from === 0 ? 'under 1 in 10' : c.to === 1 ? '9 in 10 or more' : `${Math.round(c.from * 10)} to ${Math.round(c.to * 10)} in 10`;
+
+function CalibNote({ calib }: { calib: CalibBin[] }) {
+  const range = cautiousRange(calib);
+  const got = (c: CalibBin) => c.yes / (c.yes + c.no);
+  // The two ends: the lowest and the highest range.
+  const low = calib[0];
+  const high = calib[calib.length - 1];
+  // Two worked examples from the middle, taken only from rows that are shaded.
+  const examples = [calib[4], calib[6]].filter((c) => c && isShaded(c));
+  return (
+    <p className="flag" id="calibnote">
+      <b>Too cautious{range ? ` from ${range.from} to ${range.to} in 10.` : '.'}</b> In the shaded rows unhealthy air came clearly
+      more often than the model said.
+      {examples.length === 2 && (
+        <>
+          {' '}
+          When it said {Math.round(examples[0].from * 10)} to {Math.round(examples[0].to * 10)} in 10, unhealthy air came about{' '}
+          {tenth(got(examples[0]))} in 10; when it said {Math.round(examples[1].from * 10)} to {Math.round(examples[1].to * 10)} in
+          10, it came about {tenth(got(examples[1]))} in 10.
+        </>
+      )}{' '}
+      It was close only at the two ends: unhealthy air came {pct(got(low))} of the time when it said under 1 in 10, and{' '}
+      {pct(got(high))} of the time when it said 9 in 10 or more. So read &quot;Probably OK&quot; with 3 or 4 dots as &quot;could go
+      either way&quot;.
+    </p>
+  );
+}
+
+const SOURCES = [
+  ['Air (PM2.5 and other pollutants)', 'Open-Meteo Air Quality API, CAMS global', 'CC-BY 4.0. Copernicus Atmosphere Monitoring Service and Open-Meteo.'],
+  ['Weather forecast', 'Open-Meteo, ECMWF IFS (00 UTC run)', 'CC-BY 4.0. Open-Meteo and ECMWF.'],
+  ['City and neighbourhood borders', 'OpenStreetMap', 'ODbL. © OpenStreetMap contributors.'],
+  ['The 35.4 μg/m³ line', 'US EPA air quality index, 2024 update', 'US government work. A modelling choice, not an official category.'],
+];
+
 export function DataPage() {
+  const { facts, rows, splits, calib, cost, baselines, cells } = data;
+  const byRate = [...cells].sort((a, b) => b.rate - a.rate);
   useEffect(() => {
     document.title = 'Tehran Air Risk: Data';
   }, []);
+  const [square, setSquare] = useState('west-tehran');
+  const months = (data.by_month as Record<string, number[]>)[square];
+  const top = Math.max(...months, 0.01);
+  const squareName = cells.find((c) => c.id === square)?.name ?? square;
 
-  const { rows, splits, missing_hours: missing } = profile;
-  const range = profile.labelled_range;
-  const daysPerCell = daysBetween(range.start, range.end);
-  const excluded = profile.cell_count * daysPerCell - profile.usable_cell_days;
-  const removedAtStart = profile.usable_cell_days - rows.labelled_windows;
-  const pooledPositives = profile.yearly.reduce((sum, y) => sum + y.positives, 0);
+  const betterGuess = Math.min(baselines.overall, baselines.monthly);
+  const times = Math.round((betterGuess / cost.held_out) * 2) / 2;
 
-  const parts = [
-    { key: 'train', name: 'Training', use: 'Fits the model', ...splits.train },
-    { key: 'selection', name: 'Selection', use: 'Chooses features and penalty strength', ...splits.selection },
-    { key: 'held_out', name: 'Held-out', use: 'Reported once, never used to choose', ...splits.held_out },
-  ];
-  const selectionPositives = splits.selection.positives;
-
-  const fraction = (r: { positives: number; days: number }) => r.positives / r.days;
-  const westByYear = new Map(history.by_year['west-tehran'].map((r) => [r.year, r]));
-  const yearMax = Math.max(...profile.yearly.map(fraction), ...[...westByYear.values()].map(fraction));
-  const months = [...history.by_month.pooled].sort((a, b) => a.month - b.month);
-  const monthMax = Math.max(...months.map(fraction));
-  const cells = [...profile.cells].sort((a, b) => b.positives - a.positives);
-  const cellMax = Math.max(...cells.map((c) => c.positives / c.labelled_days));
-
-  const funnel = [
-    {
-      label: 'Labelled cell-days',
-      note: `${profile.cell_count} squares, ${count(daysPerCell)} days each, every day with at least 20 of 24 hourly values`,
-      rows: profile.usable_cell_days,
-      removed: null,
-    },
-    {
-      label: 'With a full 12-hour input window',
-      note: 'The history starts mid-window, so the first two days of each square have no row',
-      rows: rows.labelled_windows,
-      removed: removedAtStart,
-    },
-    {
-      label: 'After removing summer-time days',
-      note: 'Iran used +04:30 summer time until 2022-09-21, which moves the 12:00 cutoff; those days give no row',
-      rows: rows.labelled_windows - rows.dst_dropped,
-      removed: rows.dst_dropped,
-    },
-    {
-      label: 'After removing rows with incomplete inputs',
-      note: 'A row needs all 12 hours of all 10 inputs; nothing is filled in',
-      rows: rows.dataset,
-      removed: rows.incomplete_inputs_dropped,
-    },
+  const steps: [string, string, number][] = [
+    ['Days with a result', 'at least 20 of 24 hours from the model, in 12 squares', facts.square_days],
+    ['With a full morning window', 'the 12 hours up to noon in Tehran; the first two days of the history have none', rows.labelled_windows],
+    [
+      'Without the old summer-time days',
+      'until September 2022 Iran moved its clocks, which moves noon; those days are left out',
+      rows.dataset,
+    ],
+    [
+      "With tomorrow's weather forecast",
+      `the weather forecast as it was made each morning exists from ${monthYear(splits.train.start)} on`,
+      rows.with_weather,
+    ],
   ];
 
   return (
     <main className="page data-page">
-      <div>
-        <h1>Modeled air, not measured air</h1>
-        <p className="lede">
-          Every value comes from the CAMS atmospheric model through Open-Meteo. None of it comes directly from a
-          monitoring station in Tehran.
-        </p>
-      </div>
+      <h1>Where the forecast comes from</h1>
+      <p className="lede">
+        Every number on this site is modelled air, from the CAMS model through Open-Meteo. None of it is a reading from one of
+        Tehran&apos;s air stations.
+      </p>
 
-      <dl className="data-facts">
-        <div>
-          <dt>Source</dt>
-          <dd>
-            <a href={AIR_API_URL}>Open-Meteo Air Quality API</a>
-          </dd>
-        </div>
-        <div>
-          <dt>Licence</dt>
-          <dd>CC-BY 4.0, CAMS and Open-Meteo attribution</dd>
-        </div>
-        <div>
-          <dt>Period</dt>
-          <dd>{`${longDate(range.start)} to ${longDate(range.end)}`}</dd>
-        </div>
-        <div>
-          <dt>Resolution</dt>
-          <dd>About 44 by 36 km, a 12-cell map grid</dd>
-        </div>
-      </dl>
+      <ul className="facts" aria-label="Four facts">
+        {[
+          ['CAMS', 'modelled air, not station readings'],
+          [`${monthYear(facts.start)} to ${monthYear(facts.end)}`, 'about four years of hours'],
+          ['12 squares', 'about 44 by 36 km each; Tehran falls in four'],
+          [count(facts.square_days), `days with a result (${count(facts.days_per_square)} in each square), no missing hours`],
+        ].map(([b, s]) => (
+          <li className="fact" key={b}>
+            <b>{b}</b>
+            <span>{s}</span>
+          </li>
+        ))}
+      </ul>
 
-      <section className="data-section" aria-labelledby="sources-h">
-        <h2 id="sources-h">Sources and licences</h2>
-        <div className="data-scroll" role="region" aria-label="Sources table" tabIndex={0}>
-          <table className="data-table" aria-label="Sources and licences">
-            <thead>
-              <tr>
-                <th scope="col">Used for</th>
-                <th scope="col">Source</th>
-                <th scope="col">Licence and credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profile.sources.map((s) => (
-                <tr key={s.source}>
-                  <td>{s.use.split(':')[0]}</td>
-                  <td>{s.source}</td>
-                  <td className="muted">
-                    {s.licence}. Credit: {s.attribution}.
-                  </td>
-                </tr>
-              ))}
-              <tr>
-                <td>City outline on the map</td>
-                <td>OpenStreetMap contributors</td>
-                <td className="muted">ODbL. Credit: © OpenStreetMap contributors.</td>
-              </tr>
-              <tr>
-                <td>The 35.4 μg/m³ breakpoint</td>
-                <td>
-                  <a href={EPA_URL}>U.S. EPA, 89 FR 16202 (2024-03-06), Appendix G to 40 CFR Part 58</a>
-                </td>
-                <td className="muted">U.S. government work. The label is a modelling choice, not an official category.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="small">
-          The values are modeled (CAMS), not station measurements. Open-Meteo&apos;s free tier is for non-commercial use, so this site has no
-          ads or subscriptions.
+      <section className="card" aria-labelledby="h-r">
+        <h2 id="h-r">Can you trust &quot;about 3 in 10&quot;?</h2>
+        <p className="sub">
+          For a whole year the model was never trained on, every forecast was kept and checked. When the model gave a chance, how
+          often did unhealthy air actually come? If its chances are honest, the two rows of dots match.
         </p>
+        <div className="cr head" aria-hidden="true">
+          <span>The model said</span>
+          <span>Unhealthy air came</span>
+          <span className="n">days</span>
+        </div>
+        <ul className="calib" aria-label="What the model said, and how often unhealthy air came">
+          {calib.map((c) => {
+            const n = c.yes + c.no;
+            const got = c.yes / n;
+            const said = (c.from + c.to) / 2;
+            return (
+              <li key={c.from} className={`cr${isShaded(c) ? ' off' : ''}`}>
+                <span>
+                  <span className="lbl">It said</span>
+                  <Dots n={c.from === 0 ? 0 : tenth(said)} />
+                  <small>{rangeLabel(c)}</small>
+                </span>
+                <span>
+                  <span className="lbl">Unhealthy air came</span>
+                  <Dots n={tenth(got)} />
+                  <small>{wordsFor(got)}</small>
+                </span>
+                <span className="n">
+                  {c.yes} of {n}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <CalibNote calib={calib} />
+        <details>
+          <summary>Compared with simple guesses</summary>
+          <p className="note">
+            On the same year, the model&apos;s cost (lower is better) was {cost.held_out.toFixed(3)}, against{' '}
+            {baselines.overall.toFixed(3)} for always guessing the usual share of unhealthy days and {baselines.monthly.toFixed(3)}{' '}
+            for guessing each calendar month&apos;s usual share. It is about {times} times as good as either.
+          </p>
+        </details>
       </section>
 
-      <section className="data-section" aria-labelledby="split-h">
-        <div>
-          <h2 id="split-h">How days are split</h2>
-          <p className="small">
-            Kept in time order, so the model is always tested on days after those it learned from. Dates are the day
-            being predicted.
-          </p>
-        </div>
-        <div className="splitbar" aria-hidden="true">
-          {parts.map((p) => (
-            <span key={p.key} className={`splitbar__part splitbar__part--${p.key}`} style={{ flexGrow: p.rows }}>
-              {p.name}
-            </span>
+      <section className="card" aria-labelledby="h-s">
+        <h2 id="h-s">When and where the air turns unhealthy</h2>
+        <p className="sub">
+          Share of days above the line, all days from {monthYear(facts.start)} to {monthYear(facts.end)}.
+        </p>
+        <label className="pick" htmlFor="sqpick">
+          Square
+          <select id="sqpick" value={square} onChange={(e) => setSquare(e.target.value)}>
+            {byRate.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="months" role="img" aria-label={`${squareName}: share of unhealthy days by month`}>
+          {months.map((v, i) => (
+            <div className="mo" key={i}>
+              <b>{Math.round(v * 100)}</b>
+              <span className="track">
+                <i style={{ height: `${(v / top) * 100}%` }} />
+              </span>
+              <span>{MONTH_LETTERS[i]}</span>
+            </div>
           ))}
         </div>
-        <div className="data-scroll" role="region" aria-label="Split table" tabIndex={0}>
-          <table className="data-table" aria-label="How days are split">
-            <thead>
-              <tr>
-                <th scope="col">Part</th>
-                <th scope="col" className="num">
-                  Rows
-                </th>
-                <th scope="col">From</th>
-                <th scope="col">To</th>
-                <th scope="col" className="num">
-                  Positive rate
-                </th>
-                <th scope="col">Role</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parts.map((p) => (
-                <tr key={p.key}>
-                  <th scope="row">{p.name}</th>
-                  <td className="num mono">{count(p.rows)}</td>
-                  <td className="mono">{p.start}</td>
-                  <td className="mono">{p.end}</td>
-                  <td className="num mono">{share(p.positives, p.rows)}</td>
-                  <td className="muted">{p.use}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <ul className="sq" aria-label="Share of unhealthy days in each square">
+          {byRate.map((c) => (
+            <li key={c.id}>
+              <span>{c.name}</span>
+              <b>{c.rate > 0 && c.rate < 0.005 ? 'under 1%' : pct(c.rate)}</b>
+              <span className="muted">of days</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="card" aria-labelledby="h-u">
+        <h2 id="h-u">How the days are used</h2>
+        <p className="sub">Kept in time order, so the model is always tested on days after the ones it learned from.</p>
+        <div className="time">
+          <div className="t-learn">
+            <b>Learn</b>
+            <span>
+              {dayMonthYear(splits.train.start)} to {dayMonthYear(splits.train.end)}: {count(splits.train.rows)} square-days. The
+              model learns its weights.
+            </span>
+          </div>
+          <div className="t-choose">
+            <b>Choose</b>
+            <span>
+              {dayMonthYear(splits.selection.start)} to {dayMonthYear(splits.selection.end)}: {count(splits.selection.rows)}. Picks
+              the version.
+            </span>
+          </div>
+          <div className="t-test">
+            <b>Test</b>
+            <span>
+              {dayMonthYear(splits.held_out.start)} to {dayMonthYear(splits.held_out.end)}: {count(splits.held_out.rows)}. The final
+              check.
+            </span>
+          </div>
         </div>
-        <p className="small">
-          The selection months are one warm half-year with only {selectionPositives} positive days out of{' '}
-          {count(splits.selection.rows)} ({share(splits.selection.positives, splits.selection.rows)}). That is little to choose
-          between settings with, so only two feature sets and five penalty strengths were compared.
+        <p className="note">
+          The test year was already used once, to check version 1 of the model. The weather model is chosen on the choosing months
+          alone, and its test-year numbers are a second look at those days, said openly.
         </p>
       </section>
 
-      <div className="data-two">
-        <section className="data-section" aria-labelledby="funnel-h">
-          <h2 id="funnel-h">From labelled days to model rows</h2>
-          <ol className="funnel" aria-label="From labelled days to model rows">
-            {funnel.map((f) => (
-              <li key={f.label} className="funnel__row">
-                <span className="funnel__label">
-                  {f.label}
-                  <span className="funnel__note">
-                    {f.removed === null ? '' : `Removed ${count(f.removed)}. `}
-                    {f.note}
-                  </span>
-                </span>
-                <span className="funnel__track" aria-hidden="true">
-                  <span className="funnel__bar" style={{ width: `${(f.rows / profile.usable_cell_days) * 100}%` }} />
-                </span>
-                <span className="funnel__count mono">{count(f.rows)}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="card data-quality" aria-labelledby="quality-h">
-          <h2 id="quality-h">Data quality</h2>
-          <dl className="data-pairs">
-            <dt>Usable cell-days</dt>
-            <dd className="mono">{count(profile.usable_cell_days)}</dd>
-            <dt>Hours checked</dt>
-            <dd className="mono">{count(missing.hours_checked)}</dd>
-            <dt>Missing hours</dt>
-            <dd className="mono">{count(missing.count)}</dd>
-            <dt>Days excluded under 20 of 24 hours</dt>
-            <dd className="mono">{count(excluded)}</dd>
-            <dt>Rows dropped, summer-time days</dt>
-            <dd className="mono">{count(rows.dst_dropped)}</dd>
-            <dt>Rows dropped, incomplete inputs</dt>
-            <dd className="mono">{count(rows.incomplete_inputs_dropped)}</dd>
-          </dl>
-          <p className="small">
-            Hours checked are every hour from each square&apos;s first to last stored hour. An hour counts as missing if
-            it is absent or any of its ten inputs is empty. Nothing is filled in or estimated.
-          </p>
-        </section>
-      </div>
-
-      <section className="data-section" aria-labelledby="years-h">
-        <div>
-          <h2 id="years-h">Days {THRESHOLD_TEXT}, by year</h2>
-          <p className="small">
-            Rates over all labelled days, pooled over the {profile.cell_count} squares: {share(pooledPositives, profile.usable_cell_days)} of{' '}
-            {count(profile.usable_cell_days)} cell-days. They describe the whole history, including days the model was
-            later tested on, so they are context and not what the model learned from.
-          </p>
-        </div>
-        <div className="data-scroll" role="region" aria-label="Yearly rates table" tabIndex={0}>
-          <table className="data-table" aria-label="Positive days by year">
-            <thead>
-              <tr>
-                <th scope="col">Year</th>
-                <th scope="col" className="num">
-                  Cell-days
-                </th>
-                <th scope="col">All {profile.cell_count} squares</th>
-                <th scope="col">West Tehran square</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profile.yearly.map((y) => {
-                const west = westByYear.get(y.year);
-                return (
-                  <tr key={y.year}>
-                    <th scope="row">
-                      {y.year}
-                      {y.days < 365 * profile.cell_count ? <span className="muted"> (partial)</span> : null}
-                    </th>
-                    <td className="num mono">{count(y.days)}</td>
-                    <td>
-                      <RateBar positives={y.positives} days={y.days} max={yearMax} />
-                    </td>
-                    <td>
-                      <RateBar positives={west?.positives ?? 0} days={west?.days ?? 1} max={yearMax} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="small">
-          The rate changes from year to year. Part of that may come from changes in the CAMS model and not only the air,
-          so the history should be read with care. 2022 starts on {longDate(range.start)} and 2026 ends on{' '}
-          {longDate(range.end)}.
+      <section className="card" aria-labelledby="h-d">
+        <h2 id="h-d">From hours to forecast days</h2>
+        <p className="sub">
+          Each day in each square becomes one example: the morning&apos;s air and tomorrow&apos;s weather forecast, and whether
+          the next day turned out unhealthy.
         </p>
+        <ul className="steps" aria-label="From hours to forecast days">
+          {steps.map(([t, s, v]) => (
+            <li className="step" key={t}>
+              <span>
+                {t}
+                <small>{s}</small>
+              </span>
+              <span className="bar" aria-hidden="true">
+                <i style={{ width: `${(v / facts.square_days) * 100}%` }} />
+              </span>
+              <span className="n">{count(v)}</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
-      <section className="data-section" aria-labelledby="months-h">
-        <div>
-          <h2 id="months-h">Days {THRESHOLD_TEXT}, by calendar month</h2>
-          <p className="small">
-            All labelled days, pooled over the {profile.cell_count} squares. High-pollution days are mostly a
-            cold-season pattern, and the selection months (May to early November) are mostly the quiet part of the year.
-          </p>
-        </div>
-        <div className="data-scroll" role="region" aria-label="Monthly rates table" tabIndex={0}>
-          <table className="data-table" aria-label="Positive days by calendar month">
-            <thead>
-              <tr>
-                <th scope="col">Month</th>
-                <th scope="col" className="num">
-                  Cell-days
-                </th>
-                <th scope="col">All {profile.cell_count} squares</th>
-              </tr>
-            </thead>
-            <tbody>
-              {months.map((m) => (
-                <tr key={m.month}>
-                  <th scope="row">{MONTH_NAMES[m.month - 1]}</th>
-                  <td className="num mono">{count(m.days)}</td>
-                  <td>
-                    <RateBar positives={m.positives} days={m.days} max={monthMax} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="data-section" aria-labelledby="cells-h">
-        <div>
-          <h2 id="cells-h">Each map square</h2>
-          <p className="small">
-            Every square has {count(daysPerCell)} labelled days. The squares differ a great deal, so the pooled rate hides
-            most of the story. Rates are over all labelled days.
-          </p>
-        </div>
-        <div className="data-scroll" role="region" aria-label="Squares table" tabIndex={0}>
-          <table className="data-table" aria-label="Each map square">
-            <thead>
-              <tr>
-                <th scope="col">Square</th>
-                <th scope="col" className="num">
-                  Labelled days
-                </th>
-                <th scope="col">Days {THRESHOLD_TEXT}</th>
-                <th scope="col" className="num">
-                  Mean PM2.5 (μg/m³)
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {cells.map((c) => (
-                <tr key={c.id}>
-                  <th scope="row">{c.name}</th>
-                  <td className="num mono">{count(c.labelled_days)}</td>
-                  <td>
-                    <RateBar positives={c.positives} days={c.labelled_days} max={cellMax} />
-                  </td>
-                  <td className="num mono">{c.mean_pm25.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="data-section" aria-labelledby="fields-h">
-        <h2 id="fields-h">Fields used</h2>
-        <div className="data-scroll" role="region" aria-label="Fields table" tabIndex={0}>
-          <table className="data-table" aria-label="Fields used">
-            <thead>
-              <tr>
-                <th scope="col">Field</th>
-                <th scope="col">Type</th>
-                <th scope="col">Time available</th>
-                <th scope="col">Use</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>PM2.5, PM10, NO2, SO2, CO, O3</td>
-                <td>Modeled</td>
-                <td>Hourly, today up to 12:00 Tehran time</td>
-                <td className="muted">Input features: the mean of the 12 hours; for PM2.5 also its highest and latest hour</td>
-              </tr>
-              <tr>
-                <td>Temperature, humidity, wind speed, precipitation</td>
-                <td>Weather model</td>
-                <td>Hourly, today up to 12:00 Tehran time</td>
-                <td className="muted">Candidate input features, not kept in the deployed model</td>
-              </tr>
-              <tr>
-                <td>Day of year</td>
-                <td>Calendar</td>
-                <td>Always known</td>
-                <td className="muted">Input as sine and cosine</td>
-              </tr>
-              <tr>
-                <td>Tomorrow&apos;s mean PM2.5</td>
-                <td>Modeled</td>
-                <td>After the target day</td>
-                <td className="muted">Label only, never an input</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="small">
-          Fourteen candidate inputs were built from these fields. The deployed model reads {DEPLOYED_FEATURES.length}{' '}
-          of them: <span className="mono">{DEPLOYED_FEATURES.join(', ')}</span>. The larger set scored worse on the
-          selection months. CAMS&apos;s own forecast for tomorrow is never an input, because the model would then be a
-          copy of that forecast.
-        </p>
-      </section>
-
-      <section className="data-section" aria-labelledby="limits-h">
-        <h2 id="limits-h">Limitations</h2>
-        <ul className="data-limits" aria-label="Limitations">
+      <section className="card" aria-labelledby="h-k">
+        <h2 id="h-k">What the forecast cannot see</h2>
+        <ul className="limits">
           <li>
-            The data is modeled, not station measurements, on squares of about 44 by 36 km. Every place inside a square
-            shares one value, so nothing here is street-level or neighborhood-level. This is not an official alert or
-            medical advice.
+            <b>Real readings.</b> CAMS is a model of the air, not a measurement. Tehran&apos;s air stations can show a different
+            picture, especially in the city centre.
           </li>
           <li>
-            Live inputs may differ from the stored history the model was trained on. Measured on 2026-11-03, the live
-            values were identical to the stored ones for the seven days they overlap; whether hours are revised later has
-            not been checked yet. The comparison is in the &quot;Live vs history&quot; section of{' '}
-            {GITHUB_URL ? <a href={`${GITHUB_URL}/blob/main/docs/DATA_PROFILE.md`}>docs/DATA_PROFILE.md</a> : 'docs/DATA_PROFILE.md in the repository'}.
+            <b>Streets and neighbourhoods.</b> One value covers a square of about 44 by 36 km.
           </li>
           <li>
-            The label is a day mean of modeled PM2.5 {THRESHOLD_TEXT}. The EPA cuts a mean to one decimal before it
-            looks up a category, which would change 9 of the {count(profile.usable_cell_days)} cell-days, so the site
-            claims no official category.
+            <b>Sudden events.</b> Dust storms from far away, fires, or a sudden change in traffic can surprise it.
           </li>
           <li>
-            The selection months are a warm half-year with {selectionPositives} positive days. That limits how well the
-            model&apos;s settings could be chosen, and the Model Lab says so where it matters.
-          </li>
-          <li>
-            The history is about four years. Part of the change between years may come from changes in the CAMS model, so
-            a past rate is not a promise about the next one.
+            <b>Official categories.</b> It answers one question, above 35.4 μg/m³ or not. It is not an official alert or medical
+            advice.
           </li>
         </ul>
-        <p className="small">
-          Numbers on this page are computed from <span className="mono">profile.json</span> and{' '}
-          <span className="mono">history.json</span>, written by <span className="mono">training/export_data.py</span>.
-        </p>
+        <details>
+          <summary>Sources and licences</summary>
+          <table className="sources">
+            <thead>
+              <tr>
+                <th>Used for</th>
+                <th>Source</th>
+                <th>Licence and credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SOURCES.map(([a, b, c]) => (
+                <tr key={a}>
+                  <td data-label="Used for">{a}</td>
+                  <td data-label="Source">{b}</td>
+                  <td data-label="Licence and credit">{c}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
       </section>
     </main>
   );

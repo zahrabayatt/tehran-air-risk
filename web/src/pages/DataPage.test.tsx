@@ -1,170 +1,163 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import history from '../../public/data/history.json';
-import profile from '../../public/data/profile.json';
-import { DEPLOYED_FEATURES, DataPage, share } from './DataPage';
+import data from '../../public/data/data-page.json';
+import { DataPage, cautiousRange, isShaded, tenth } from './DataPage';
 
 const count = (n: number) => n.toLocaleString('en-US');
-const rows = (table: HTMLElement) => within(table).getAllByRole('row').slice(1);
 
-describe('share', () => {
-  it('shows positives over days with one decimal, and never a bare zero for a small positive share', () => {
-    expect(share(91, 1800)).toBe('5.1%');
-    expect(share(715, 1552)).toBe('46.1%');
-    expect(share(0, 1552)).toBe('0%');
-    expect(share(3, 1552)).toBe('0.2%');
-    expect(share(1, 100000)).toBe('<0.1%');
+describe('the reliability helpers', () => {
+  it('rounds a share to a number of dots out of ten', () => {
+    expect(tenth(0)).toBe(0);
+    expect(tenth(0.26)).toBe(3);
+    expect(tenth(0.96)).toBe(10);
   });
 
-  it('uses exact counts, so a share near a rounding tie is not rounded twice', () => {
-    // 7 of 1,552 days is 0.4510%, so 0.5%; 85 of 2,208 is 3.8496%, so 3.8% (its stored four-decimal rate, 0.0385, would give 3.9%).
-    expect(share(7, 1552)).toBe('0.5%');
-    expect(share(85, 2208)).toBe('3.8%');
-    expect(share(818, 11436)).toBe('7.2%');
+  it('shades a row only when unhealthy air came clearly more often than the top of the range', () => {
+    expect(isShaded({ from: 0.2, to: 0.3, yes: 40, no: 67 })).toBe(true); // 37% against 30%
+    expect(isShaded({ from: 0.3, to: 0.4, yes: 24, no: 40 })).toBe(false); // 38%, inside the range
+    expect(isShaded({ from: 0.0, to: 0.1, yes: 47, no: 3610 })).toBe(false);
+    expect(isShaded({ from: 0.9, to: 1.0, yes: 93, no: 4 })).toBe(false);
+  });
+
+  it('works out the cautious range from the shaded rows', () => {
+    expect(cautiousRange(data.calib)).toEqual({ from: 2, to: 9 });
   });
 });
 
 describe('DataPage', () => {
-  it('says the values are modelled, and names the sources, licences, period and resolution', () => {
+  it('leads with the source line and shows four facts from the data', () => {
     render(<DataPage />);
-    expect(screen.getByRole('heading', { level: 1, name: 'Modeled air, not measured air' })).toBeTruthy();
-    const link = screen.getByRole('link', { name: 'Open-Meteo Air Quality API' });
-    expect(link.getAttribute('href')).toBe('https://open-meteo.com/en/docs/air-quality-api');
-    expect(screen.getAllByText(/CC-BY 4\.0/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/ODbL/).length).toBeGreaterThan(0);
-    expect(screen.getByText('August 4, 2022 to November 2, 2026')).toBeTruthy();
-    expect(screen.getByText('About 44 by 36 km, a 12-cell map grid')).toBeTruthy();
-    expect(screen.queryByText(/45 km/)).toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Where the forecast comes from' })).toBeTruthy();
+    expect(document.body.textContent).toContain('None of it is a reading from one of Tehran');
+    const facts = within(screen.getByRole('list', { name: 'Four facts' })).getAllByRole('listitem');
+    expect(facts).toHaveLength(4);
+    expect(facts[0].textContent).toContain('CAMS');
+    expect(facts[0].textContent).toContain('modelled air, not station readings');
+    expect(facts[1].textContent).toContain('Aug 2022 to Nov 2026');
+    expect(facts[2].textContent).toContain('12 squares');
+    expect(facts[2].textContent).toContain('Tehran falls in four');
+    expect(facts[3].textContent).toContain('18,624');
+    expect(facts[3].textContent).toContain('1,552 in each square');
+    expect(data.facts.square_days).toBe(18624);
   });
 
-  it('shows the real data-quality numbers, including zero missing hours', () => {
+  it('draws the reliability check as ten dots per row, shading the rows where unhealthy air came clearly more often', () => {
     render(<DataPage />);
-    const dl = screen.getByRole('region', { name: 'Data quality' });
-    const text = dl.textContent ?? '';
-    expect(text).toContain(count(profile.usable_cell_days));
-    expect(text).toContain(count(profile.missing_hours.hours_checked));
-    expect(profile.missing_hours.count).toBe(0);
-    const missing = within(dl).getByText('Missing hours').nextElementSibling;
-    expect(missing?.textContent).toBe('0');
-    const excluded = within(dl).getByText(/Days excluded/).nextElementSibling;
-    // 12 cells x every day from the first to the last labelled date, less the cell-days that were labelled.
-    const days = (Date.parse(profile.labelled_range.end) - Date.parse(profile.labelled_range.start)) / 86_400_000 + 1;
-    expect(days).toBe(1552);
-    expect(excluded?.textContent).toBe(String(profile.cell_count * days - profile.usable_cell_days));
-    expect(excluded?.textContent).toBe('0');
-    expect(missing?.textContent).toBe(count(profile.missing_hours.count));
-  });
-
-  it('lists the funnel from labelled cell-days to the dataset with the DST-era rows dropped', () => {
-    render(<DataPage />);
-    const list = screen.getByRole('list', { name: 'From labelled days to model rows' });
-    const items = within(list).getAllByRole('listitem');
-    expect(items).toHaveLength(4);
-    expect(items[0].textContent).toContain(count(profile.usable_cell_days));
-    expect(items[1].textContent).toContain(count(profile.rows.labelled_windows));
-    expect(items[2].textContent).toContain('576');
-    expect(items[2].textContent).toContain(count(profile.rows.dataset));
-    expect(items[3].textContent).toContain(`Removed ${count(profile.rows.incomplete_inputs_dropped)}`);
-    expect(profile.rows.dst_dropped).toBe(576);
-    expect(profile.rows.labelled_windows - profile.rows.dst_dropped - profile.rows.incomplete_inputs_dropped).toBe(profile.rows.dataset);
-  });
-
-  it('shows the three splits with their sizes and date ranges, in time order', () => {
-    render(<DataPage />);
-    const table = screen.getByRole('table', { name: 'How days are split' });
-    const body = rows(table);
-    expect(body).toHaveLength(3);
-    const parts = [profile.splits.train, profile.splits.selection, profile.splits.held_out];
-    parts.forEach((s, i) => {
-      expect(body[i].textContent).toContain(count(s.rows));
-      expect(body[i].textContent).toContain(s.start);
-      expect(body[i].textContent).toContain(s.end);
+    expect(screen.getByRole('heading', { name: 'Can you trust "about 3 in 10"?' })).toBeTruthy();
+    const rows = within(screen.getByRole('list', { name: 'What the model said, and how often unhealthy air came' })).getAllByRole('listitem');
+    expect(rows).toHaveLength(data.calib.length);
+    rows.forEach((row, i) => {
+      const c = data.calib[i];
+      expect(row.querySelectorAll('.dots')).toHaveLength(2);
+      row.querySelectorAll('.dots').forEach((d) => expect(d.querySelectorAll('i')).toHaveLength(10));
+      expect(row.textContent).toContain(`${c.yes} of ${c.yes + c.no}`);
+      expect(row.classList.contains('off')).toBe(isShaded(c));
     });
-    expect(parts[0].end < parts[1].start).toBe(true);
-    expect(parts[1].end < parts[2].start).toBe(true);
-    expect(parts[0].rows + parts[1].rows + parts[2].rows).toBe(profile.rows.dataset);
+    // 2 to 3 in 10 through 7 to 8 in 10 are shaded; the two ends are not.
+    expect(rows[0].classList.contains('off')).toBe(false);
+    expect(rows[2].textContent).toContain('2 to 3 in 10');
+    expect(rows[2].classList.contains('off')).toBe(true);
+    expect(rows[7].textContent).toContain('7 to 8 in 10');
+    expect(rows[7].classList.contains('off')).toBe(true);
+    expect(rows[9].textContent).toContain('9 in 10 or more');
+    expect(rows[9].classList.contains('off')).toBe(false);
+    // the "unhealthy came" dots in row 5 (4 to 5 in 10): 27 of 41 days
+    expect(rows[4].querySelectorAll('.dots')[1].querySelectorAll('i.on')).toHaveLength(tenth(27 / 41));
   });
 
-  it('warns that the selection months are one warm half-year with 85 positive days', () => {
+  it('states the finding: too cautious from 2 to 9 in 10, honest at the two ends, and keeps the cost comparison folded', () => {
     render(<DataPage />);
-    expect(profile.splits.selection.positives).toBe(85);
-    expect(screen.getAllByText(/85 positive days/).length).toBeGreaterThan(0);
+    const note = document.getElementById('calibnote')!;
+    expect(note.textContent).toContain('Too cautious');
+    expect(note.textContent).toContain('from 2 to 9 in 10');
+    expect(note.textContent).not.toMatch(/right on \d+ of \d+/i);
+    const details = screen.getByText('Compared with simple guesses').closest('details')!;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain(data.cost.held_out.toFixed(3));
+    expect(details.textContent).toContain(data.baselines.overall.toFixed(3));
+    expect(details.textContent).toContain(data.baselines.monthly.toFixed(3));
   });
 
-  it('shows yearly rates for all labelled days, labelled as such, and the pooled rate from the data', () => {
+  it('shows the month chart for West Tehran and switches square', () => {
     render(<DataPage />);
-    const table = screen.getByRole('table', { name: 'Positive days by year' });
-    const body = rows(table);
-    expect(body).toHaveLength(profile.yearly.length);
-    expect(body[0].textContent).toContain('2022');
-    expect(body[0].textContent).toContain(share(profile.yearly[0].positives, profile.yearly[0].days));
-    expect(body[3].textContent).toContain('9.3%');
-    expect(body[3].textContent).toContain('60.5%');
-    const total = profile.yearly.reduce((sum, y) => sum + y.positives, 0);
-    expect(share(total, profile.usable_cell_days)).toBe('7.0%');
-    expect(screen.getAllByText(/7\.0%/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/all labelled days/i).length).toBeGreaterThan(0);
+    const pick = screen.getByRole('combobox', { name: /Square/ }) as HTMLSelectElement;
+    expect(pick.value).toBe('west-tehran');
+    const chart = () => screen.getByRole('img', { name: /share of unhealthy days by month/ });
+    expect(chart().getAttribute('aria-label')).toBe('West Tehran: share of unhealthy days by month');
+    expect(chart().querySelectorAll('.mo')).toHaveLength(12);
+    expect(chart().textContent).toContain('89'); // January and December, 0.879 and 0.887
+    fireEvent.change(pick, { target: { value: 'north-tehran' } });
+    expect(chart().getAttribute('aria-label')).toBe('North Tehran: share of unhealthy days by month');
+    expect(chart().textContent).not.toContain('89');
   });
 
-  it('shows pooled rates for the 12 calendar months', () => {
+  it('writes "under 1%" for exactly the three cleanest squares, and a real percentage elsewhere', () => {
     render(<DataPage />);
-    const body = rows(screen.getByRole('table', { name: 'Positive days by calendar month' }));
-    expect(body).toHaveLength(12);
-    expect(body[0].textContent).toContain('January');
-    expect(body[0].textContent).toContain(share(history.by_month.pooled[0].positives, history.by_month.pooled[0].days));
+    const list = screen.getByRole('list', { name: 'Share of unhealthy days in each square' });
+    const items = within(list).getAllByRole('listitem');
+    expect(items).toHaveLength(12);
+    expect(items.filter((li) => li.textContent?.includes('under 1%'))).toHaveLength(3);
+    const find = (name: string) => items.find((li) => li.textContent?.includes(name))!;
+    expect(find('Far East').textContent).toContain('under 1%');
+    expect(find('Far Northeast').textContent).toContain('under 1%');
+    expect(find('Far Southeast').textContent).toContain('under 1%');
+    expect(find('Northeast Tehran').textContent).toContain('1%');
+    expect(find('West Tehran').textContent).toContain('46%');
+    expect(items[0].textContent).toContain('West Tehran'); // most often first
+    expect(list.textContent).not.toContain('0%');
   });
 
-  it('shows one row per cell with days, rate and mean PM2.5, strongest first', () => {
+  it('shows how the days are used with the version 2 split and says the test year is a second look', () => {
     render(<DataPage />);
-    const body = rows(screen.getByRole('table', { name: 'Each map square' }));
-    expect(body).toHaveLength(profile.cell_count);
-    expect(body[0].textContent).toContain('West Tehran');
-    expect(body[0].textContent).toContain('46.1%');
-    expect(body[0].textContent).toContain('38.49');
-    expect(body[body.length - 1].textContent).toContain('Far East');
-    expect(body[body.length - 1].textContent).toContain('0.2%');
-    const southeast = body.find((r) => r.textContent?.includes('Far Southeast'))!;
-    expect(southeast.textContent).toContain('0.5%');
-    expect(body[0].textContent).toContain(count(profile.cells[0].labelled_days));
+    const s = data.splits;
+    const section = screen.getByRole('heading', { name: 'How the days are used' }).closest('section')!;
+    expect(section.textContent).toContain(count(s.train.rows));
+    expect(section.textContent).toContain(count(s.selection.rows));
+    expect(section.textContent).toContain(count(s.held_out.rows));
+    expect(s.held_out.rows).toBe(4368);
+    expect(section.textContent).not.toContain('4,380');
+    expect(section.textContent).toContain('second look');
+    expect(section.textContent).toContain('was already used once');
   });
 
-  it('lists the inputs, and the deployed features are the ones in model/model.json', () => {
-    const model = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', '..', 'model', 'model.json'), 'utf8'));
-    expect(DEPLOYED_FEATURES).toEqual(model.features);
+  it('counts the steps from hours to forecast days, ending with the weather step from the data', () => {
     render(<DataPage />);
-    const table = screen.getByRole('table', { name: 'Fields used' });
-    expect(rows(table).length).toBeGreaterThanOrEqual(4);
-    expect(within(table).getByText(/never an input/)).toBeTruthy();
+    const steps = within(screen.getByRole('list', { name: 'From hours to forecast days' })).getAllByRole('listitem');
+    expect(steps).toHaveLength(4);
+    expect(steps[0].textContent).toContain(count(data.facts.square_days));
+    expect(steps[1].textContent).toContain(count(data.rows.labelled_windows));
+    expect(steps[2].textContent).toContain(count(data.rows.dataset));
+    expect(steps[3].textContent).toContain(count(data.rows.with_weather));
+    expect(data.rows.with_weather).toBe(data.splits.train.rows + data.splits.selection.rows + data.splits.held_out.rows);
+    expect(document.body.textContent).not.toContain('11,556');
   });
 
-  it('states the threshold without an official category, and cites the EPA breakpoint', () => {
-    const { container } = render(<DataPage />);
-    const text = container.textContent ?? '';
-    expect(text).toContain('above 35.4 μg/m³');
-    expect(text).toContain('89 FR 16202');
-    expect(text).toContain('Appendix G to 40 CFR Part 58');
-    expect(text).not.toMatch(/moderate|unhealthy|sensitive groups/i);
-  });
-
-  it('states the limitations in plain words', () => {
+  it('lists what the forecast cannot see and folds the sources away', () => {
     render(<DataPage />);
-    const limits = screen.getByRole('list', { name: 'Limitations' });
-    const text = limits.textContent ?? '';
-    expect(text).toMatch(/modeled/i);
-    expect(text).toMatch(/not station measurements/i);
-    expect(text).toMatch(/may differ/i);
-    expect(text).toMatch(/identical/i);
-    expect(text).toMatch(/not an official alert or medical advice/i);
-    expect(text).toMatch(/warm months|warm half-year/i);
+    expect(screen.getByRole('heading', { name: 'What the forecast cannot see' })).toBeTruthy();
+    expect(document.body.textContent).toContain('not an official alert or medical advice');
+    const details = screen.getByText('Sources and licences').closest('details')!;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain('CC-BY 4.0');
+    expect(details.textContent).toContain('ODbL');
+    expect(details.textContent).toContain('US EPA');
   });
 
-  it('shows no placeholders, empty numbers, or excluded metric names', () => {
+  it('no longer has the year, data-quality or fields tables', () => {
+    render(<DataPage />);
+    expect(screen.queryByRole('table', { name: 'Positive days by year' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Data quality' })).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Fields used' })).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Each map square' })).toBeNull();
+  });
+
+  it('has no placeholders, em dashes, or excluded metric names', () => {
     const { container } = render(<DataPage />);
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/\[[a-z ]+\]/i);
     expect(text).not.toMatch(/NaN|undefined|null/);
-    expect(text).not.toMatch(/\b(MSE|RMSE|MAE|Accuracy|Recall|F1|ROC)\b/);
+    expect(text).not.toContain('—');
+    expect(text).not.toMatch(/\b(MSE|RMSE|MAE|Accuracy|Precision|Recall|F1|ROC|AUC|L1|L2)\b/);
+    expect(text).not.toMatch(/polluted/i);
   });
 });

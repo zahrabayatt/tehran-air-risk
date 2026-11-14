@@ -5,7 +5,7 @@ import { GITHUB_URL, HOUSE_URL as SIBLING } from '../src/config';
 const ROUTES = [
   { hash: '#/', heading: null, nav: 'Forecast' },
   { hash: '#/lab', heading: 'Model Lab', nav: 'Model Lab' },
-  { hash: '#/data', heading: 'Modeled air, not measured air', nav: 'Data' },
+  { hash: '#/data', heading: 'Where the forecast comes from', nav: 'Data' },
 ];
 
 for (const r of ROUTES) {
@@ -22,7 +22,8 @@ for (const r of ROUTES) {
 }
 
 test('every page sets its own document title', async ({ page }) => {
-  for (const [hash, title] of [['#/', 'Tehran Air Risk: Forecast'], ['#/lab', 'Tehran Air Risk: Model Lab, Data'], ['#/data', 'Tehran Air Risk: Data']]) {
+  // The Lab names its opening step in the title, so it is matched by its start.
+  for (const [hash, title] of [['#/', 'Tehran Air Risk: Forecast'], ['#/lab', /^Tehran Air Risk: Model Lab, /], ['#/data', 'Tehran Air Risk: Data']] as const) {
     await page.goto(hash);
     await expect(page).toHaveTitle(title);
   }
@@ -34,7 +35,7 @@ test('pill navigation moves between routes', async ({ page }) => {
   await nav.getByRole('link', { name: 'Model Lab' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Model Lab' })).toBeVisible();
   await nav.getByRole('link', { name: 'Data' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Modeled air, not measured air' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Where the forecast comes from' })).toBeVisible();
 });
 
 test('the site opens dark, and the theme button switches and survives a reload', async ({ page }) => {

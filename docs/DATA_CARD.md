@@ -189,7 +189,7 @@ The model beats both baselines. scikit-learn fitted on the same rows gives a hel
 
 ```bash
 python -m pipeline.fetch --start 2022-08-04 --end 2026-11-02 --out data/raw/hourly.csv.gz
-python -m training.train      # model/model.json and web/public/data/{profile,history,sample}.json
+python -m training.train      # model/model.json and web/public/data/{profile,history}.json
 ```
 
 The raw data is git-ignored. Re-running changes the stored history and the numbers above only if the source revises its values.

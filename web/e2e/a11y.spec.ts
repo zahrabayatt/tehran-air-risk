@@ -29,7 +29,7 @@ const ROUTES: Route[] = [
   { name: 'Forecast', hash: '#/', heading: 'Tehran air tomorrow', prepare: forecastPage(normal()) },
   { name: 'Forecast, gap', hash: '#/', heading: 'Tehran air tomorrow', prepare: forecastPage(westGap()) },
   { name: 'Model Lab', hash: '#/lab', heading: 'Model Lab' },
-  { name: 'Data', hash: '#/data', heading: 'Modeled air, not measured air' },
+  { name: 'Data', hash: '#/data', heading: 'Where the forecast comes from' },
   { name: 'Forecast, stale', hash: '#/', heading: 'Tehran air', prepare: forecastPage(stale(), NOW_STALE) },
   { name: 'Forecast, empty', hash: '#/', heading: 'Tehran air', prepare: forecastPage(empty()) },
   {

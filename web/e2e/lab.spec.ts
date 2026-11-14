@@ -258,6 +258,8 @@ test('Lab step 16 reads version 2 and the scikit-learn tile matches the held-out
   await expect(page.locator('#selv')).toHaveText(model.cost.selection.toFixed(4));
   await expect(page.locator('.time')).toContainText(model.rows.held_out.toLocaleString('en-US'));
   await expect(page.locator('#cautious')).toContainText('in 10');
+  await expect(page.locator('#cautious')).toContainText('The Data page shows this check for every band.');
+  await expect(page.locator('#cautious')).not.toContainText('The forecast page says');
   await page.locator('#hist .hb').nth(5).click();
   await expect(page.locator('#bincard h3')).toContainText('Said 5 to 6 in 10');
 });

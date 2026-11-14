@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import data from '../../public/data/data-page.json';
-import { DataPage, cautiousRange, isShaded, tenth } from './DataPage';
+import { DataPage, isShaded, tenth } from './DataPage';
+import { cautiousRuns } from '../lab/cautious';
 
 const count = (n: number) => n.toLocaleString('en-US');
 
@@ -19,8 +20,12 @@ describe('the reliability helpers', () => {
     expect(isShaded({ from: 0.9, to: 1.0, yes: 93, no: 4 })).toBe(false);
   });
 
-  it('works out the cautious range from the shaded rows', () => {
-    expect(cautiousRange(data.calib)).toEqual({ from: 2, to: 9 });
+  it('works out the cautious runs of consecutive shaded rows, as Lab step 16 does', () => {
+    const bands = data.calib.map((c) => ({ lo: c.from, hi: c.to, s: c.yes / (c.yes + c.no), n: c.yes + c.no }));
+    expect(cautiousRuns(bands)).toEqual([
+      { from: 2, to: 3 },
+      { from: 4, to: 9 },
+    ]);
   });
 });
 
@@ -65,11 +70,16 @@ describe('DataPage', () => {
     expect(rows[4].querySelectorAll('.dots')[1].querySelectorAll('i.on')).toHaveLength(tenth(27 / 41));
   });
 
-  it('states the finding: too cautious from 2 to 9 in 10, honest at the two ends, and keeps the cost comparison folded', () => {
+  it('states the finding as runs of shaded rows, names the others, and keeps the cost comparison folded', () => {
     render(<DataPage />);
     const note = document.getElementById('calibnote')!;
     expect(note.textContent).toContain('Too cautious');
-    expect(note.textContent).toContain('from 2 to 9 in 10');
+    expect(note.textContent).toContain('from 2 to 3 in 10 and from 4 to 9 in 10');
+    expect(note.textContent).not.toContain('2 to 9');
+    expect(note.textContent).not.toContain('close only at the two ends');
+    // the bands that are not shaded are named, the 3 to 4 band among them
+    expect(note.textContent).toContain('3 to 4 in 10');
+    expect(note.textContent).toContain('1 to 2 in 10');
     expect(note.textContent).not.toMatch(/right on \d+ of \d+/i);
     const details = screen.getByText('Compared with simple guesses').closest('details')!;
     expect(details.open).toBe(false);

@@ -4,6 +4,7 @@
 // three parts, the two baselines, the scikit-learn check and the reliability bins.
 import katex from 'katex';
 import { css, el, fmt, num, onTheme } from '../kit.js';
+import { cautiousRuns, runsText } from '../cautious';
 
 export const html = `<div id="main" class="skel" aria-busy="true">
     <div class="skonly" aria-hidden="true">
@@ -111,15 +112,9 @@ export function mount(ctx) {
     // "too cautious": the bands where more days turned unhealthy than the model said
     const over = B.filter((d) => d.n && d.s > d.hi);
     if (over.length) {
-      const runs = [];
-      over.forEach((d) => {
-        const last = runs[runs.length - 1];
-        if (last && last[last.length - 1].k === d.k - 1) last.push(d);
-        else runs.push([d]);
-      });
-      const rng = runs.map((g) => `${Math.round(g[0].lo * 10)} to ${Math.round(g[g.length - 1].hi * 10)} in 10`).join(' and from ');
+      const rng = runsText(cautiousRuns(B));
       const w = over.reduce((a, d) => (d.s - d.mid > a.s - a.mid ? d : a));
-      $('cautious').textContent = `From ${rng} the dots sit above the line: when the model says ${Math.round(w.lo * 10)} to ${Math.round(w.hi * 10)} in 10, about ${Math.round(w.s * 10)} in 10 turn unhealthy. The forecast page says so beside its numbers.`;
+      $('cautious').textContent = `From ${rng} the dots sit above the line: when the model says ${Math.round(w.lo * 10)} to ${Math.round(w.hi * 10)} in 10, about ${Math.round(w.s * 10)} in 10 turn unhealthy. The Data page shows this check for every band.`;
     } else {
       $('cautious').textContent = 'No group sits above the line: in every group, no more days turned unhealthy than the model said.';
     }

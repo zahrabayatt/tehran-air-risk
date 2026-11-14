@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import data from '../../public/data/data-page.json';
+import { cautiousRuns, isOver, runsText } from '../lab/cautious';
 import './data.css';
 
 /**
@@ -32,15 +33,10 @@ const wordsFor = (v: number) => {
   return n === 0 ? 'under 1 in 10' : n === 10 && v < 1 ? 'almost 10 in 10' : `${n} in 10`;
 };
 
-/** Unhealthy air came clearly (more than 5 points) more often than the top of the range the model said. */
-export const isShaded = (c: CalibBin) => c.yes / (c.yes + c.no) > c.to + 0.05;
+const asBand = (c: CalibBin) => ({ lo: c.from, hi: c.to, s: c.yes / (c.yes + c.no), n: c.yes + c.no });
 
-/** The first and last range, in tenths, where the shaded rows lie ("2 to 9 in 10"). */
-export function cautiousRange(calib: CalibBin[]): { from: number; to: number } | null {
-  const shaded = calib.filter(isShaded);
-  if (shaded.length === 0) return null;
-  return { from: Math.round(shaded[0].from * 10), to: Math.round(shaded[shaded.length - 1].to * 10) };
-}
+/** Unhealthy air came more often than the top of the range the model said (the same rule as Lab step 16). */
+export const isShaded = (c: CalibBin) => isOver(asBand(c));
 
 function Dots({ n }: { n: number }) {
   return (
@@ -56,17 +52,16 @@ const rangeLabel = (c: CalibBin) =>
   c.from === 0 ? 'under 1 in 10' : c.to === 1 ? '9 in 10 or more' : `${Math.round(c.from * 10)} to ${Math.round(c.to * 10)} in 10`;
 
 function CalibNote({ calib }: { calib: CalibBin[] }) {
-  const range = cautiousRange(calib);
+  const runs = cautiousRuns(calib.map(asBand));
   const got = (c: CalibBin) => c.yes / (c.yes + c.no);
-  // The two ends: the lowest and the highest range.
-  const low = calib[0];
-  const high = calib[calib.length - 1];
+  const others = calib.filter((c) => !isShaded(c)).map(rangeLabel);
+  const list = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : others.join('');
   // Two worked examples from the middle, taken only from rows that are shaded.
   const examples = [calib[4], calib[6]].filter((c) => c && isShaded(c));
   return (
     <p className="flag" id="calibnote">
-      <b>Too cautious{range ? ` from ${range.from} to ${range.to} in 10.` : '.'}</b> In the shaded rows unhealthy air came clearly
-      more often than the model said.
+      <b>Too cautious{runs.length ? ` from ${runsText(runs)}.` : '.'}</b> In the shaded rows unhealthy air came more often than
+      the model said.
       {examples.length === 2 && (
         <>
           {' '}
@@ -74,10 +69,9 @@ function CalibNote({ calib }: { calib: CalibBin[] }) {
           {tenth(got(examples[0]))} in 10; when it said {Math.round(examples[1].from * 10)} to {Math.round(examples[1].to * 10)} in
           10, it came about {tenth(got(examples[1]))} in 10.
         </>
-      )}{' '}
-      It was close only at the two ends: unhealthy air came {pct(got(low))} of the time when it said under 1 in 10, and{' '}
-      {pct(got(high))} of the time when it said 9 in 10 or more. So read &quot;Probably OK&quot; with 3 or 4 dots as &quot;could go
-      either way&quot;.
+      )}
+      {others.length > 0 && <> In the other rows ({list}) it came no more often than the model said.</>} So read &quot;Probably
+      OK&quot; with 3 or 4 dots as &quot;could go either way&quot;.
     </p>
   );
 }

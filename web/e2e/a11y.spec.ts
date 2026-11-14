@@ -1,11 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { NOW_FRESH, NOW_TWO_DAYS, empty, mixed, stale, twoDays } from './forecastFixtures';
+import { NOW_FRESH, NOW_STALE, empty, normal, stale, westGap } from './forecastFixtures';
 
 // Every route, in both themes, at 1280 and 390 wide: no serious or critical axe violation, and no sideways
 // page scroll at 390. The Forecast page is opened here on a fixture file with a fixed clock, so it shows
 // the same answer on any day; its stale, empty and error states are checked here too, and forecast.spec.ts checks
-// the other states (a gap, the CAMS layer).
+// the other states (a gap, made late, the map).
 // The Model Lab is checked here at its opening step, and step by step in the block below.
 interface Route {
   name: string;
@@ -26,24 +26,16 @@ const forecastPage = (body: unknown | 'error', now = NOW_FRESH) => async (page: 
   }, now);
 };
 const ROUTES: Route[] = [
-  { name: 'Forecast', hash: '#/', heading: /^Wednesday 4 November: mixed/, prepare: forecastPage(mixed()) },
-  {
-    name: 'Forecast, two days',
-    hash: '#/',
-    heading: /^Thursday 5 November: likely below/,
-    prepare: forecastPage(twoDays(), NOW_TWO_DAYS),
-    ready: async (page) => {
-      await expect(page.getByRole('group', { name: 'Forecast day' })).toBeVisible();
-    },
-  },
+  { name: 'Forecast', hash: '#/', heading: 'Tehran air tomorrow', prepare: forecastPage(normal()) },
+  { name: 'Forecast, gap', hash: '#/', heading: 'Tehran air tomorrow', prepare: forecastPage(westGap()) },
   { name: 'Model Lab', hash: '#/lab', heading: 'Model Lab' },
   { name: 'Data', hash: '#/data', heading: 'Modeled air, not measured air' },
-  { name: 'Forecast, stale', hash: '#/', heading: 'No current forecast', prepare: forecastPage(stale()) },
-  { name: 'Forecast, empty', hash: '#/', heading: 'No forecasts yet', prepare: forecastPage(empty()) },
+  { name: 'Forecast, stale', hash: '#/', heading: 'Tehran air', prepare: forecastPage(stale(), NOW_STALE) },
+  { name: 'Forecast, empty', hash: '#/', heading: 'Tehran air', prepare: forecastPage(empty()) },
   {
     name: 'Forecast, error',
     hash: '#/',
-    heading: 'Forecast',
+    heading: 'Tehran air tomorrow',
     prepare: forecastPage('error'),
     ready: async (page) => {
       await expect(page.getByRole('alert')).toContainText('The forecast did not load');

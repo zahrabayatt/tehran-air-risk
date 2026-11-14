@@ -1,12 +1,7 @@
-import type { Entry, GridCell, HistoryInfo, ModelInfo, ProfileInfo } from './types';
+import type { Entry } from './types';
 
 export interface ForecastData {
-  grid: GridCell[];
   entries: Entry[];
-  /** The frozen model's description, history and profile are optional: the page works without them. */
-  model: ModelInfo | null;
-  history: HistoryInfo | null;
-  profile: ProfileInfo | null;
 }
 
 type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
@@ -30,6 +25,8 @@ function parseEntry(raw: unknown, index: number): Entry {
     model_version: (raw.model_version as Entry['model_version']) ?? null,
     outcome,
     outcome_mean_pm25: finite(raw.outcome_mean_pm25) ? raw.outcome_mean_pm25 : null,
+    // Only version 2 entries carry it; for the others the page works it out from issued_at.
+    ...(typeof raw.issued_late === 'boolean' ? { issued_late: raw.issued_late } : {}),
   };
   const p = raw.probability;
   const usable = raw.gap !== true && finite(p) && p >= 0 && p <= 1;
@@ -56,57 +53,16 @@ export function parsePredictions(raw: unknown): Entry[] {
   return raw.entries.map(parseEntry);
 }
 
-function parseGrid(raw: unknown): GridCell[] {
-  const cells = isObject(raw) && Array.isArray(raw.cells) ? raw.cells : null;
-  const ok =
-    cells !== null &&
-    cells.length > 0 &&
-    cells.every(
-      (c) =>
-        isObject(c) && typeof c.id === 'string' && typeof c.name === 'string' && finite(c.row) && finite(c.col) &&
-        finite(c.lat_min) && finite(c.lat_max) && finite(c.lon_min) && finite(c.lon_max),
-    );
-  if (!ok) throw new Error('The grid file is not readable.');
-  return cells as GridCell[];
-}
-
 async function getJson(fetchFn: FetchFn, url: string, init?: RequestInit): Promise<unknown> {
   const res = await fetchFn(url, init);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-async function optional<T>(fetchFn: FetchFn, url: string, check: (x: unknown) => x is T): Promise<T | null> {
-  try {
-    const x = await getJson(fetchFn, url);
-    return check(x) ? x : null;
-  } catch {
-    return null;
-  }
-}
-
-const isModel = (x: unknown): x is ModelInfo =>
-  isObject(x) && Array.isArray(x.features) && isObject(x.cost) && finite(x.cost.held_out) && isObject(x.baselines) &&
-  isObject(x.baselines.overall) && isObject(x.baselines.monthly) && typeof x.beats_baselines === 'boolean';
-const isHistory = (x: unknown): x is HistoryInfo => isObject(x) && isObject(x.by_month) && isObject(x.by_year);
-const isProfile = (x: unknown): x is ProfileInfo =>
-  isObject(x) && isObject(x.labelled_range) && finite(x.usable_cell_days) && finite(x.cell_count);
-
-const reason = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-/** Loads what the Forecast page needs. The grid and the predictions are required; the rest only adds detail. */
+/** Loads what the Forecast page needs: data/predictions.json. */
 export async function loadForecastData(base: string, fetchFn: FetchFn = (u, i) => fetch(u, i)): Promise<ForecastData> {
-  const url = (name: string) => `${base}data/${name}`;
-  const [gridRaw, predRaw, model, history, profile] = await Promise.all([
-    getJson(fetchFn, url('grid.json')).catch((e: unknown) => {
-      throw new Error(`Could not load the grid file (grid.json). ${reason(e)}`);
-    }),
-    getJson(fetchFn, url('predictions.json'), { cache: 'no-cache' }).catch((e: unknown) => {
-      throw new Error(`Could not load the forecast file (predictions.json). ${reason(e)}`);
-    }),
-    optional(fetchFn, url('model.json'), isModel),
-    optional(fetchFn, url('history.json'), isHistory),
-    optional(fetchFn, url('profile.json'), isProfile),
-  ]);
-  return { grid: parseGrid(gridRaw), entries: parsePredictions(predRaw), model, history, profile };
+  const raw = await getJson(fetchFn, `${base}data/predictions.json`, { cache: 'no-cache' }).catch((e: unknown) => {
+    throw new Error(`Could not load the forecast file (predictions.json). ${e instanceof Error ? e.message : String(e)}`);
+  });
+  return { entries: parsePredictions(raw) };
 }

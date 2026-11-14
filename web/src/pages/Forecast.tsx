@@ -1,31 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CellCard } from '../components/CellCard';
-import { ForecastLog } from '../components/ForecastLog';
-import { RiskMap, type MapLabel, type MapMarker } from '../components/RiskMap';
-import { SeasonCard } from '../components/SeasonCard';
-import { GITHUB_URL } from '../config';
-import { placeCell } from '../forecast/cells';
-import { offeredDays } from '../forecast/days';
+import { CityMap, type SquareState } from '../components/CityMap';
 import { loadForecastData, type ForecastData } from '../forecast/data';
-import {
-  THRESHOLD_TEXT, cityHeadline, dayHasEnded, isStale, runDateLabel, targetDateLabel, updatedLabel, type CellForecast,
-} from '../forecast/headline';
-import { forecastLog } from '../forecast/log';
+import { dayHasEnded, isStale, runDateLabel, shortDayLabel, targetDateLabel, updatedLabel } from '../forecast/dates';
+import { newestIssued, newestTarget } from '../forecast/days';
 import { resolveNow } from '../forecast/now';
-import placesDoc from '../forecast/places.json';
-import { makeProjection } from '../forecast/projection';
-import { describeInputs, monthlySeries, pooledRate, resultSentence, spanOfHistory } from '../forecast/summary';
-import { buildTiles, layerLabel, legendText } from '../forecast/tiles';
-import type { Entry, Layer, Place } from '../forecast/types';
+import type { CellId, Entry } from '../forecast/types';
+import {
+  CELLS, CITY_SQUARES, HOODS, PLACES, THRESHOLD, answer, cellName, chanceInTen, chanceText, currentEntries, isForecast, isLate,
+  lastDays, outsideLine, pageTitle, squareFor, whyDiffer,
+} from '../forecast/view';
 import './forecast.css';
 
 const BASE = import.meta.env.BASE_URL;
-const PLACES = placesDoc.places as Place[];
-const DEFAULT_CELL = 'west-tehran';
-const DEFAULT_PLACE = 'azadi';
-const WEST = 'west-tehran';
-const EAST = 'east-tehran';
+const OFFICIAL = 'https://airnow.tehran.ir/';
+const START = 'p:azadi';
 
 type LoadState =
   | { status: 'loading' }
@@ -60,7 +49,7 @@ export function ForecastPage() {
   if (state.status === 'loading') {
     return (
       <main className="page forecast">
-        <h1>Forecast</h1>
+        <h1>Tehran air tomorrow</h1>
         <p role="status" className="notice">
           Loading the forecast…
         </p>
@@ -70,276 +59,283 @@ export function ForecastPage() {
   if (state.status === 'error') {
     return (
       <main className="page forecast">
-        <h1>Forecast</h1>
+        <h1>Tehran air tomorrow</h1>
         <div role="alert" className="notice notice--error">
           <p>
             <strong>The forecast did not load.</strong> {state.message}
           </p>
-          <button type="button" className="btn btn--outline" onClick={retry}>
+          <button type="button" className="btn" onClick={retry}>
             Try again
           </button>
         </div>
       </main>
     );
   }
-  return <Forecast data={state.data} now={now} />;
+  return <Forecast entries={state.data.entries} now={now} />;
 }
 
-/** The latest entry per cell for the most recent target date. */
-function currentEntries(entries: Entry[], target: string): Map<string, Entry> {
-  const out = new Map<string, Entry>();
-  for (const e of entries) {
-    if (e.target_date !== target) continue;
-    const prev = out.get(e.cell_id);
-    if (!prev || Date.parse(e.issued_at) >= Date.parse(prev.issued_at)) out.set(e.cell_id, e);
-  }
-  return out;
-}
+// The choices in the "Air at" list: the landmarks, then every neighbourhood by name. A key is "p:<landmark id>" or "h:<index in city.json>".
+const HOOD_OPTIONS = HOODS.map((h, i) => ({ key: `h:${i}`, name: h.n })).sort((a, b) => a.name.localeCompare(b.name));
 
-const asForecast = (e: Entry | undefined): CellForecast =>
-  e && !e.gap && e.probability !== null ? { kind: 'forecast', probability: e.probability } : { kind: 'none' };
-
-function Forecast({ data, now }: { data: ForecastData; now: Date }) {
-  const { grid, entries, model, history, profile } = data;
-  const proj = useMemo(() => makeProjection(grid), [grid]);
-  const [layer, setLayer] = useState<Layer>('model');
-  const startCell = grid.some((c) => c.id === DEFAULT_CELL) ? DEFAULT_CELL : grid[0].id;
-  const [cellId, setCellId] = useState(startCell);
-  const [placeId, setPlaceId] = useState(
-    PLACES.some((p) => p.id === DEFAULT_PLACE && placeCell(grid, p)?.id === startCell) ? DEFAULT_PLACE : '',
+function Dots({ n }: { n: number }) {
+  return (
+    <span className="dots" aria-hidden="true">
+      {Array.from({ length: 10 }, (_, i) => (
+        <i key={i} className={i < n ? 'on' : ''} />
+      ))}
+    </span>
   );
+}
 
-  const cell = grid.find((c) => c.id === cellId) ?? grid[0];
-  const place = PLACES.find((p) => p.id === placeId) ?? null;
+const wordClass = (w: 'OK' | 'Unhealthy') => (w === 'OK' ? 'ok' : 'bad');
+
+function Forecast({ entries, now }: { entries: Entry[]; now: Date }) {
+  const [choice, setChoice] = useState(START);
+  const onPickHood = useCallback((i: number) => setChoice(`h:${i}`), []);
 
   const empty = entries.length === 0;
-  const latestIssued = empty
-    ? ''
-    : entries.reduce((a, e) => (Date.parse(e.issued_at) > Date.parse(a) ? e.issued_at : a), entries[0].issued_at);
-  const stale = !empty && isStale(now, latestIssued);
-  // The days still to come or under way in Tehran, oldest first. The page opens on the latest. With none left (a delayed
-  // run), it shows the latest target date, which is over, and says so.
-  const days = useMemo(() => offeredDays(entries, now), [entries, now]);
-  const [dayChoice, setDayChoice] = useState<string | null>(null);
-  const picked = days.find((d) => d.date === dayChoice) ?? days[days.length - 1] ?? null;
-  const target = picked
-    ? picked.date
-    : empty
-      ? ''
-      : entries.reduce((a, e) => (e.target_date > a ? e.target_date : a), entries[0].target_date);
-  const dayEntries = entries.filter((e) => e.target_date === target);
-  const dayIssued = picked
-    ? picked.issuedAt
-    : dayEntries.length === 0
-      ? latestIssued
-      : dayEntries.reduce((a, e) => (Date.parse(e.issued_at) > Date.parse(a) ? e.issued_at : a), dayEntries[0].issued_at);
+  const issued = newestIssued(entries);
+  const stale = !empty && isStale(now, issued as string);
+  // The day shown is the newest target date in the file.
+  const target = newestTarget(entries) ?? '';
   const current = useMemo(() => currentEntries(entries, target), [entries, target]);
+  const cell: CellId = squareFor(choice);
+  const entry = current.get(cell);
 
-  const pickPlace = (id: string) => {
-    const p = PLACES.find((x) => x.id === id);
-    const c = p ? placeCell(grid, p) : null;
-    if (p && c) {
-      setPlaceId(p.id);
-      setCellId(c.id);
-    } else {
-      setPlaceId('');
+  // Every square, as the map and the four boxes show it. With no current forecast (empty or stale) all are grey.
+  const squares = useMemo(() => {
+    const m = new Map<CellId, SquareState>();
+    if (empty || stale) return m;
+    for (const c of CELLS) {
+      const e = current.get(c.id);
+      m.set(c.id, isForecast(e) ? answer(e.probability) : null);
     }
-  };
-  const pickCell = (id: string) => {
-    setCellId(id);
-    setPlaceId('');
-  };
+    return m;
+  }, [empty, stale, current]);
 
-  const log = useMemo(() => forecastLog(entries, cell.id), [entries, cell.id]);
-  const series = history ? monthlySeries(history, cell.id) : [];
-  const inputs = model ? describeInputs(model.features) : null;
-
-  const showMap = !empty && !stale;
-  const dateLabel = targetDateLabel(target);
-  const headline = showMap ? cityHeadline(asForecast(current.get(WEST)), asForecast(current.get(EAST)), dateLabel) : null;
-
-  const tiles = useMemo(
-    () => buildTiles(grid, current, layer, proj, cell.id),
-    [grid, current, layer, proj, cell.id],
-  );
-  const labels: MapLabel[] = PLACES.filter((p) => p.onMap).map((p) => {
-    const { x, y } = proj.project(p.lat, p.lon);
-    return { x, y, text: p.name, anchor: 'middle', dot: true };
-  });
-  const markerPos = place ? proj.project(place.lat, place.lon) : null;
-  const marker: MapMarker | null = markerPos;
-  // Just below the outline, clear of the squares' own numbers and of the marker.
-  const cityAt = proj.project(35.53, 51.33);
+  const tiles = useMemo(() => lastDays(entries, cell), [entries, cell]);
+  const hood = choice.startsWith('h:') ? Number(choice.slice(2)) : null;
+  const place = choice.startsWith('p:') ? choice.slice(2) : null;
+  const late = entry ? isLate(entry) : false;
+  const title = empty || stale ? 'Tehran air' : pageTitle(target, late, now);
 
   return (
     <main className="page forecast">
-      {empty ? (
-        <section className="notice notice--lead">
-          <h1>No forecasts yet</h1>
-          <p>
-            The daily forecast has not run yet, so there is nothing to show. The first forecast appears here after the next scheduled
-            run, together with a record of how each one turned out.
-          </p>
-        </section>
-      ) : null}
+      <h1 id="title">{title}</h1>
 
-      {stale ? (
-        <section role="alert" className="stale">
-          <h1>No current forecast</h1>
-          <p>
-            The latest run is more than 48 hours old, so the forecast is hidden rather than shown out of date. Last run:{' '}
-            {runDateLabel(latestIssued)}.
-          </p>
-        </section>
-      ) : null}
-
-      {showMap && headline ? (
-        <>
-          <div className="head">
-            <div className="head__text">
-              <div className="meta" data-testid="forecast-meta">
-                <span>Forecast for {dateLabel}</span>
-                <span className="chip" data-testid="updated">
-                  Updated <time dateTime={dayIssued}>{updatedLabel(dayIssued)}</time>
-                </span>
-              </div>
-              <h1>{headline.title}</h1>
-              <p className="lede" data-testid="city-sub">
-                {headline.sub}
-              </p>
-              {days.length === 0 && dayHasEnded(target, now) ? (
-                <p className="small" data-testid="day-ended">
-                  {dateLabel} has ended in Tehran. This is the last forecast issued for it; the next one appears after the next
-                  scheduled run.
-                </p>
-              ) : null}
-            </div>
-            <div className={days.length > 1 ? 'head__controls head__controls--days' : 'head__controls'}>
-              {days.length > 1 ? (
-                <div role="group" aria-label="Forecast day" className="layers layers--days">
-                  {days.map((d) => (
-                    <button
-                      key={d.date}
-                      type="button"
-                      aria-pressed={d.date === target}
-                      className="layers__btn"
-                      onClick={() => setDayChoice(d.date)}
-                    >
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <div role="group" aria-label="Map layer" className="layers">
-                {(['model', 'cams'] as const).map((l) => (
-                  <button key={l} type="button" aria-pressed={layer === l} className="layers__btn" onClick={() => setLayer(l)}>
-                    {layerLabel(l)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <section className="mapgrid" aria-label="Forecast map">
-            <div className="card mapcard">
-              {days.length > 1 && picked ? (
-                <div className="mapday" data-testid="map-day">
-                  Map shows <strong>{picked.label}</strong>
-                </div>
-              ) : null}
-              <RiskMap tiles={tiles} onPick={pickCell} labels={labels} marker={marker} cityLabel={cityAt} />
-              <div className="mapnote">
-                <span className="legend">
-                  <span className="swatch swatch--below" aria-hidden="true" />▼ Below <span className="swatch swatch--above" aria-hidden="true" />▲ Above{' '}
-                  <span data-testid="legend">{legendText(layer)}</span>
-                </span>
-                <span data-testid="map-note">
-                  Each square is about 44 by 36 km. Everywhere inside it shares one forecast.
-                </span>
-              </div>
-            </div>
-
-            <aside className="side">
-              <div className="card">
-                <div className="field">
-                  <label htmlFor="place">Check a place</label>
-                  <select id="place" className="control" value={placeId} onChange={(e) => pickPlace(e.target.value)}>
-                    <option value="">Select from the list, or tap the map</option>
-                    {PLACES.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <CellCard cell={cell} place={place} entry={current.get(cell.id)} target={target} inputs={inputs} />
-              <div className="why">
-                <strong>Why squares and not streets?</strong> The source model cannot see individual neighborhoods, so this map does not
-                pretend to. It is modelled air, not readings from Tehran's stations, and it is not an official alert or medical advice.
-              </div>
-            </aside>
-          </section>
-        </>
-      ) : null}
-
-      <section className="twocol" aria-label="Record and seasons">
-        <ForecastLog
-          cellName={cell.name}
-          rows={log}
-          picker={
-            showMap || empty
-              ? undefined
-              : { value: cell.id, options: grid.map((c) => ({ id: c.id, name: c.name })), onChange: pickCell }
-          }
-        />
-        {history && profile && series.length > 0 ? (
-          <SeasonCard cellName={cell.name} bars={series} range={spanOfHistory(profile).range} pooled={pooledRate(history)} />
-        ) : null}
-      </section>
-
-      <section className="card limits" aria-labelledby="limits-h">
-        <h2 id="limits-h">What to keep in mind</h2>
-        <ul>
-          <li>The values are modelled by CAMS and Open-Meteo, not measured at stations.</li>
-          <li>Each square is about 44 by 36 km, and everywhere inside it shares one forecast. Nothing here is street-level.</li>
-          <li>The chance is a model estimate that the day's average PM2.5 is above {THRESHOLD_TEXT}. It is not an official alert or medical advice.</li>
-          <li>
-            The model reads today's air up to noon in Tehran. When it forecasts live it may use forecast-based inputs, while its
-            history used stored model runs, so a live forecast can behave differently from its test on past days.
-          </li>
-        </ul>
-      </section>
-
-      <section aria-label="About this project" className="card about">
-        <div>
-          <div className="small">The project</div>
-          <div className="about__v">Logistic regression, written from scratch</div>
-        </div>
-        {profile ? (
+      <section className="card hero" aria-label="Forecast">
+        <div className="top">
           <div>
-            <div className="small">Data</div>
-            <div className="about__v">{spanOfHistory(profile).daysPerSquare.toLocaleString('en-US')} days of CAMS history per square</div>
+            <label className="pick" htmlFor="place">
+              <span>Air at</span>
+              <select id="place" value={choice} onChange={(e) => setChoice(e.target.value)}>
+                <optgroup label="Landmarks">
+                  {PLACES.map((p) => (
+                    <option key={p.id} value={`p:${p.id}`}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Neighbourhoods">
+                  {HOOD_OPTIONS.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+            <p className="insq" data-testid="square">
+              in the {cellName(cell)} square
+            </p>
           </div>
-        ) : null}
-        {model ? (
-          <div className="about__result">
-            <div className="small">On days it never trained on</div>
-            <div className="about__v">{model.beats_baselines ? 'Beats both simple guesses' : 'Does not beat both simple guesses'}</div>
-            <div className="small">{resultSentence(model)}</div>
-          </div>
-        ) : null}
-        <div className="about__links">
-          <Link to="/lab" className="btn btn--solid">
-            See how it works
-          </Link>
-          {GITHUB_URL ? (
-            <a href={GITHUB_URL} className="btn btn--link">
-              GitHub
-            </a>
+          {!empty && !stale ? (
+            <span className="dayline">
+              <span data-testid="day">{targetDateLabel(target)}</span>
+              {late && entry ? (
+                <span className="badge" title={`Saved ${updatedLabel(entry.issued_at)}`} data-testid="late-badge">
+                  made after the day began
+                </span>
+              ) : null}
+            </span>
           ) : null}
         </div>
+
+        {empty ? (
+          <div className="nonews" role="status" data-testid="no-forecast">
+            <p className="answer none">No forecasts yet</p>
+            <p>The daily forecast has not run yet. The first one appears here after the next scheduled run.</p>
+          </div>
+        ) : stale ? (
+          <div className="nonews" role="alert" data-testid="stale">
+            <p className="answer none">No current forecast</p>
+            <p>
+              The latest forecast is more than 48 hours old, so it is hidden rather than shown out of date. Last made{' '}
+              {runDateLabel(issued as string)}.
+            </p>
+          </div>
+        ) : isForecast(entry) ? (
+          <div data-testid="answer-card">
+            <p className={`answer ${answer(entry.probability) === 'OK' ? 'clean' : 'dirty'}`} data-testid="answer">
+              {answer(entry.probability) === 'OK' ? 'Probably OK' : 'Probably unhealthy'}
+            </p>
+            <div className="odds">
+              <Dots n={chanceInTen(entry.probability)} />
+              <span data-testid="odds">
+                Chance of unhealthy air: <b>{chanceText(entry.probability)}</b>
+              </span>
+            </div>
+            <Cams entry={entry} />
+          </div>
+        ) : (
+          <div className="nonews" data-testid="gap">
+            <p className="answer none">No forecast for this square</p>
+            <p>
+              The forecast could not be made for the {cellName(cell)} square for {targetDateLabel(target)}
+              {entry?.gap_reason ? ` (${entry.gap_reason})` : ''}.
+            </p>
+          </div>
+        )}
+
+        {!empty && !stale && dayHasEnded(target, now) ? (
+          <p className="small" data-testid="day-ended">
+            {targetDateLabel(target)} has ended in Tehran. This is the last forecast made for it; the next one appears after the
+            next scheduled run.
+          </p>
+        ) : null}
+
+        <details>
+          <summary>What counts as unhealthy?</summary>
+          <p>
+            The day's fine dust (PM2.5) averages above {THRESHOLD} μg/m³. From there, the US air quality scale calls air unhealthy for
+            sensitive people: children, older people, and anyone with asthma or heart disease. In the air quality index Tehran's AQCC
+            shows on <a href={OFFICIAL}>airnow.tehran.ir</a>, this is an index above 100, past "acceptable" (قابل قبول).
+          </p>
+        </details>
       </section>
+
+      <section className="card" aria-labelledby="cityh">
+        <h2 id="cityh">Across Tehran</h2>
+        <p className="sub">The city falls in four forecast squares. Tap your neighbourhood.</p>
+        <div className="city">
+          <CityMap squares={squares} hood={hood} place={place} onPickHood={onPickHood} />
+          <div>
+            <div className="parts" data-testid="parts">
+              {CITY_SQUARES.map((id) => {
+                const e = current.get(id);
+                const s = squares.get(id) ?? null;
+                const n = HOODS.filter((h) => h.c === id).length;
+                return (
+                  <div key={id} className={`part ${s === null ? 'tn' : s === 'OK' ? 't0' : 't1'}${id === cell ? ' sel' : ''}`} data-cell={id}>
+                    <span>
+                      {cellName(id)} · {n} neighbourhood{n > 1 ? 's' : ''}
+                    </span>
+                    <b>{s === null ? 'No forecast' : s === 'OK' ? 'Probably OK' : 'Probably unhealthy'}</b>
+                    <span>{isForecast(e) && s !== null ? chanceText(e.probability) : ''}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {!empty && !stale ? (
+              <p className="around" data-testid="around">
+                {outsideLine(entries, target)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div className="key" data-testid="key">
+          <span>
+            <i className="t0" />
+            OK
+          </span>
+          <span>
+            <i className="t1" />
+            Unhealthy
+          </span>
+          {[...squares.values()].some((s) => s === null) || squares.size === 0 ? (
+            <span>
+              <i className="tn" />
+              No forecast
+            </span>
+          ) : null}
+        </div>
+        <details>
+          <summary>Why one forecast for so many neighbourhoods?</summary>
+          <p>
+            The forecast is built from CAMS, a European air model that covers the whole world in squares of about 44 by 36 km. Every
+            place inside one square gets the same numbers, and Tehran falls in four of them. Each neighbourhood takes the forecast of
+            the square that holds most of it, so a neighbourhood on a border shares its larger side's forecast. A street-level forecast
+            would need measurements from Tehran's air stations, which this project does not use yet.
+          </p>
+        </details>
+      </section>
+
+      {tiles.length > 0 ? (
+        <section className="card" aria-labelledby="logh">
+          <h2 id="logh">
+            {tiles.length === 1 ? 'The last day' : `The last ${tiles.length} days`} in the {cellName(cell)} square
+          </h2>
+          <p className="sub">
+            Each forecast against what happened, misses included. "Made late" marks a forecast made after its day had begun.
+          </p>
+          <div className="days" data-testid="days">
+            {tiles.map((t, i) => (
+              <div key={t.date} className={`day${i === tiles.length - 1 ? ' latest' : ''}`} data-testid="day-tile">
+                <div className="dtop">
+                  <span>{shortDayLabel(t.date)}</span>
+                  {t.right === null ? null : (
+                    <span className={`mark ${t.right ? 'ok' : 'miss'}`} aria-label={t.right ? 'right' : 'wrong'}>
+                      {t.right ? '✓' : '✕'}
+                    </span>
+                  )}
+                </div>
+                <div className="row">
+                  <span>Said</span>
+                  {t.said === null ? <span className="chip wait">no forecast</span> : <span className={`chip ${wordClass(t.said)}`}>{t.said}</span>}
+                </div>
+                <div className="row">
+                  <span>Was</span>
+                  {t.was === null ? <span className="chip wait">not over</span> : <span className={`chip ${wordClass(t.was)}`}>{t.was}</span>}
+                </div>
+                <span className="late" title="This forecast was made after its day had begun">
+                  {t.late ? 'made late' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <p className="foot">
+        Modelled air from CAMS, not station readings, and not an official alert or medical advice. For the official forecast see{' '}
+        <a href={OFFICIAL}>airnow.tehran.ir</a>. <Link to="/lab">How the model works</Link> · <Link to="/data">Where the data comes from</Link>.
+        Neighbourhoods: © OpenStreetMap contributors.
+      </p>
     </main>
+  );
+}
+
+/** The CAMS one-liner, with the "Why can they differ?" fold when the two disagree. */
+function Cams({ entry }: { entry: Entry & { probability: number } }) {
+  if (entry.cams_forecast_pm25 === null) return null;
+  const camsAbove = entry.cams_forecast_pm25 > THRESHOLD;
+  const agree = camsAbove === (answer(entry.probability) === 'Unhealthy');
+  const word = camsAbove ? 'unhealthy' : 'OK';
+  return (
+    <div className="second" data-testid="cams">
+      {agree ? (
+        <>
+          CAMS, the European air forecast, agrees: <b>{word}</b>.
+        </>
+      ) : (
+        <>
+          CAMS, the European air forecast, disagrees: it expects <b>{word}</b> air here.
+          <details>
+            <summary>Why can they differ?</summary>
+            <p>{whyDiffer(entry)}</p>
+          </details>
+        </>
+      )}
+    </div>
   );
 }

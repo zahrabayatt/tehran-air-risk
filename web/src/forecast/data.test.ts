@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import grid from '../../public/data/grid.json';
 import { loadForecastData, parsePredictions } from './data';
 
 const good = {
@@ -14,6 +13,13 @@ describe('parsePredictions', () => {
 
   it('keeps a good entry unchanged', () => {
     expect(parsePredictions({ schema_version: 1, entries: [good] })).toEqual([good]);
+  });
+
+  it('keeps issued_late when it is a boolean, and leaves it out otherwise', () => {
+    const rows = parsePredictions({ entries: [{ ...good, issued_late: true }, { ...good, cell_id: 'far-east', issued_late: 'yes' }, { ...good, cell_id: 'far-west' }] });
+    expect(rows[0].issued_late).toBe(true);
+    expect('issued_late' in rows[1]).toBe(false);
+    expect('issued_late' in rows[2]).toBe(false);
   });
 
   it('a gap never carries a number', () => {
@@ -50,20 +56,12 @@ function fakeFetch(files: Record<string, unknown>) {
 }
 
 describe('loadForecastData', () => {
-  it('loads the grid and predictions, and treats model, history and profile as optional', async () => {
-    const data = await loadForecastData('/x/', fakeFetch({ 'grid.json': grid, 'predictions.json': { schema_version: 1, entries: [good] } }));
-    expect(data.grid).toHaveLength(12);
+  it('loads the predictions', async () => {
+    const data = await loadForecastData('/x/', fakeFetch({ 'predictions.json': { schema_version: 1, entries: [good] } }));
     expect(data.entries).toHaveLength(1);
-    expect(data.model).toBeNull();
-    expect(data.history).toBeNull();
-    expect(data.profile).toBeNull();
   });
 
   it('fails with a clear message when predictions.json is missing', async () => {
-    await expect(loadForecastData('/x/', fakeFetch({ 'grid.json': grid }))).rejects.toThrow(/Could not load the forecast file/);
-  });
-
-  it('fails with a clear message when the grid is missing', async () => {
-    await expect(loadForecastData('/x/', fakeFetch({ 'predictions.json': { entries: [] } }))).rejects.toThrow(/Could not load the grid file/);
+    await expect(loadForecastData('/x/', fakeFetch({}))).rejects.toThrow(/Could not load the forecast file/);
   });
 });

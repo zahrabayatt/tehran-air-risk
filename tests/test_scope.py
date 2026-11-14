@@ -15,7 +15,7 @@ Allowed, on purpose:
 - ``toPrecision`` (a JavaScript number formatter) in the site source.
 - Test files in ``web/src`` (``*.test.ts``, ``*.test.tsx``): some of them hold the list of
   excluded names so they can assert that a page does not show them.
-- In README.md only, a line that says the names are out of scope.
+- No file may name them on an "out of scope" line any more: the README has no such line.
 """
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ NAMES_CAPITALISED = re.compile(r"\b(Precision|F1|L1|AUC|ROC-AUC)\b")
 # Where the exported data lives: the site's copies, the model file and the daily forecasts.
 SCANNED_CODE = ["web/src", "training", "pipeline", "web/public/data", "model", "data/predictions.json"]
 DOC_FILES = ["README.md", "docs/DATA_CARD.md", "docs/DATA_PROFILE.md", "docs/CHANGELOG.md"]
-# Files whose line saying "out of scope" may name the excluded methods.
-OUT_OF_SCOPE_LISTS = {"README.md"}
+# Files whose line saying "out of scope" may name the excluded methods: none (the README has no such line).
+OUT_OF_SCOPE_LISTS: set[str] = set()
 OUT_OF_SCOPE_LINE = re.compile(r"out of scope", re.IGNORECASE)
 
 

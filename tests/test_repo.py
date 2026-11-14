@@ -91,8 +91,21 @@ def test_private_notes_stay_out_of_the_repo():
         assert not (ROOT / "docs" / name).exists(), name
 
 
-@pytest.mark.xfail(reason="README still states version 1's numbers; Task 13 replaces the README",
-                   strict=False)
+def _cautious_text(model):
+    """The reliability sentence by the site's rule (web/src/lab/cautious.ts): a band is too cautious when
+    more days turned unhealthy than the top of its range; consecutive bands are joined."""
+    h = model["held_out_probabilities"]
+    runs = []
+    for k, (lo, hi, y1, y0) in enumerate(zip(h["bins"], h["bins"][1:], h["counts_y1"], h["counts_y0"])):
+        n = y1 + y0
+        if n and y1 / n > hi:
+            if runs and runs[-1][2] == k - 1:
+                runs[-1][1], runs[-1][2] = round(hi * 10), k
+            else:
+                runs.append([round(lo * 10), round(hi * 10), k])
+    return " and from ".join(f"{a} to {b} in 10" for a, b, _ in runs)
+
+
 def test_readme_states_the_result_in_model_json():
     model = json.loads(read("model/model.json"))
     readme = read("README.md")
@@ -105,6 +118,25 @@ def test_readme_states_the_result_in_model_json():
     card = read("docs/DATA_CARD.md")
     for value in (held, overall, monthly):
         assert f"{value:.4f}" in card
+    assert f"When it gives a chance from {_cautious_text(model)}, it is too cautious" in readme
+    assert "[v2" not in readme and "<!--" not in readme
+    assert "second look" in readme or "looked at once before" in readme
+
+
+def test_readme_split_matches_the_model_date_ranges():
+    dr = json.loads(read("model/model.json"))["date_range"]
+    assert (dr["train"]["start"][:7], dr["train"]["end"][:7]) == ("2024-03", "2025-05")
+    assert (dr["selection"]["start"][:7], dr["selection"]["end"][:7]) == ("2025-05", "2025-11")
+    assert dr["held_out"]["end"][:7] == "2026-11"
+    assert "March 2024 to May 2025, settings chosen on May to November 2025" in read("README.md")
+
+
+def test_readme_has_no_course_scope_or_repository_section_and_real_fetch_commands():
+    readme = read("README.md")
+    headings = re.findall(r"^#+\s*(.+)$", readme, re.M)
+    assert "Course scope" not in headings and "Repository" not in headings
+    assert "Sister project" not in readme
+    assert "pipeline.fetch" in readme and "pipeline.weather" in readme
 
 
 def test_readme_and_data_card_numbers_match_the_profile():
@@ -114,7 +146,7 @@ def test_readme_and_data_card_numbers_match_the_profile():
     positives = sum(c["positives"] for c in profile["cells"])
     pooled = f"{positives / profile['usable_cell_days'] * 100:.1f}%"
     dropped = str(profile["rows"]["dst_dropped"])
-    for name in ("README.md", "docs/DATA_CARD.md"):
+    for name in ("docs/DATA_CARD.md",):
         text = read(name)
         assert cell_days in text, f"{name}: {cell_days}"
         assert pooled in text, f"{name}: {pooled}"

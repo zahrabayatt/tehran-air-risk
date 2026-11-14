@@ -323,7 +323,7 @@ test.describe('Forecast page: words, phone and themes', () => {
     const text = await page.locator('main').innerText();
     expect(text).not.toMatch(/polluted/i);
     expect(text).not.toMatch(EXCLUDED);
-    expect(text).not.toContain('—');
+    expect(text).not.toContain('\u2014');
   });
 
   for (const theme of ['dark', 'light'] as const) {

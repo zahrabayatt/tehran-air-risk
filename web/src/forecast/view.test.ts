@@ -206,7 +206,7 @@ describe('whyDiffer', () => {
     expect(t).toMatch(/time of year/);
   });
   it('has no em dash', () => {
-    expect(whyDiffer(e('2026-11-05', 'west-tehran', 0.3))).not.toContain('—');
+    expect(whyDiffer(e('2026-11-05', 'west-tehran', 0.3))).not.toContain('\u2014');
   });
 });
 

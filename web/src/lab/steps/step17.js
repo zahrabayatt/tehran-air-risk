@@ -13,7 +13,7 @@ export const html = `<div id="main" class="skel" aria-busy="true">
     <section class="card" aria-labelledby="st">
       <span class="tag">Step 17 of 17</span>
       <h2 id="st">Today's forecast</h2>
-      <p class="goal">Everything together, for one real day. Take today's numbers, scale them with the training averages, multiply by the weights, add b, and pass the sum through the sigmoid. Out comes the chance shown on the forecast page.</p>
+      <p class="goal">Everything together, for one real day. Take today's numbers, scale them with the training averages, multiply by the weights, add b, and pass the sum through the sigmoid. Out comes a chance, made the same way as the one on the Forecast page.</p>
       <div class="split wide"><div><div class="phead"><b id="hd"></b></div><div class="wrapt" tabindex="0" role="region" aria-label="The worked example, every input"><table class="tbl" id="t"></table></div>
    <p class="note">Scaled = (today − average) ÷ spread, with the average and spread of the training days. Adds = weight × scaled.</p></div>
   <div class="nota"><h3>From sum to chance</h3><div class="kv" id="kv"></div><p class="callout" id="co"></p>

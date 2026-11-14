@@ -166,7 +166,7 @@ describe('DataPage', () => {
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/\[[a-z ]+\]/i);
     expect(text).not.toMatch(/NaN|undefined|null/);
-    expect(text).not.toContain('—');
+    expect(text).not.toContain('\u2014');
     expect(text).not.toMatch(/\b(MSE|RMSE|MAE|Accuracy|Precision|Recall|F1|ROC|AUC|L1|L2)\b/);
     expect(text).not.toMatch(/polluted/i);
   });

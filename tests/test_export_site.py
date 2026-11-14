@@ -126,7 +126,7 @@ def test_data_page_has_no_excluded_names():
     for name in FILES:
         text = (DATA / f"{name}.json").read_text(encoding="utf-8")
         assert not NAMES_ANY_CASE.search(text) and not NAMES_CAPITALISED.search(text), name
-        assert "—" not in text
+        assert "\u2014" not in text
 
 
 def test_data_page_numbers_agree_with_the_profile_and_model():
@@ -145,7 +145,7 @@ def test_data_page_numbers_agree_with_the_profile_and_model():
 
 
 def test_no_em_dashes_in_the_exporter():
-    assert "—" not in (ROOT / "training" / "export_site.py").read_text(encoding="utf-8")
+    assert "\u2014" not in (ROOT / "training" / "export_site.py").read_text(encoding="utf-8")
 
 
 def test_lab_today_has_eight_browsable_training_days():

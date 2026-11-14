@@ -102,7 +102,7 @@ export function mount(ctx) {
         ).join('') +
         '</div>',
     ).join('');
-    $('trioNote').textContent = `All three mornings had about the same PM2.5 (${T.map((r) => fmt(r[c('pm2_5_mean')], 0)).join(', ')} μg/m³). Only the first stayed unhealthy: still air and a low air ceiling held the dust in. Wind or rain cleared the other two. Today's air alone cannot tell them apart; tomorrow's weather can.`;
+    $('trioNote').textContent = `All three mornings had about the same PM2.5 (${T.map((r) => fmt(r[c('pm2_5_mean')], 0)).join(', ')} μg/m³). Only the first stayed unhealthy: still air held the dust in. Wind or rain cleared the other two. Today's air alone cannot tell them apart; tomorrow's weather can.`;
     const sc = (doy) => {
       const an = (2 * Math.PI * doy) / 365.25;
       return [fmt(Math.sin(an), 2), fmt(Math.cos(an), 2)];

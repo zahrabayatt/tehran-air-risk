@@ -1,5 +1,5 @@
 {
-  "note": "Approximate centre of each named place, 2 decimals. The cell a place belongs to is never typed here: the browser computes it from public/data/grid.json, and the tests check that against pipeline/grid.py cell_for.",
+  "note": "Approximate centre of each named place, 2 decimals. The cell a place belongs to is never typed here: pipeline/export_grid.py works it out with pipeline/grid.py cell_for and writes it to cellFixture.json (the site no longer reads this file).",
   "places": [
     { "id": "azadi", "name": "Azadi Square", "lat": 35.7, "lon": 51.34, "landmark": "Azadi Tower" },
     { "id": "tehranpars", "name": "Tehranpars", "lat": 35.73, "lon": 51.52, "landmark": "Tehranpars Square" },

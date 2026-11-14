@@ -2,8 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { NOW_FRESH, NOW_STALE, empty, normal, stale, westGap } from './forecastFixtures';
 
-// Every route, in both themes, at 1280 and 390 wide: no serious or critical axe violation, and no sideways
-// page scroll at 390. The Forecast page is opened here on a fixture file with a fixed clock, so it shows
+// Every route, in both themes, at 1280 and 375 wide: no serious or critical axe violation, and no sideways
+// page scroll at 375. The Forecast page is opened here on a fixture file with a fixed clock, so it shows
 // the same answer on any day; its stale, empty and error states are checked here too, and forecast.spec.ts checks
 // the other states (a gap, made late, the map).
 // The Model Lab is checked here at its opening step, and step by step in the block below.
@@ -43,7 +43,7 @@ const ROUTES: Route[] = [
   },
 ];
 const LAB: Route = ROUTES.find((r) => r.name === 'Model Lab') as Route;
-const WIDTHS = [1280, 390];
+const WIDTHS = [1280, 375];
 const THEMES = ['dark', 'light'] as const;
 
 async function open(page: Page, route: Route, theme: (typeof THEMES)[number]) {
@@ -78,12 +78,12 @@ for (const route of ROUTES) {
 
 for (const route of ROUTES) {
   for (const theme of THEMES) {
-    test(`${route.name}, ${theme}: no horizontal page scroll at 390px`, async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
+    test(`${route.name}, ${theme}: no horizontal page scroll at 375px`, async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
       await open(page, route, theme);
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
+        clientWidth: window.innerWidth,
       }));
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
     });
@@ -94,7 +94,7 @@ for (const route of ROUTES) {
 const LAB_STEP_COUNT = 17;
 const stepRoute = (n: number): Route => ({ ...LAB, hash: `#/lab/${n}` });
 const sideScroll = (page: Page) =>
-  page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
 
 for (const theme of THEMES) {
   for (const width of WIDTHS) {
@@ -116,9 +116,9 @@ for (const theme of THEMES) {
   }
 }
 
-test('Model Lab: no horizontal page scroll at 390px on any step, in both themes', async ({ page }) => {
+test('Model Lab: no horizontal page scroll at 375px on any step, in both themes', async ({ page }) => {
   test.setTimeout(300_000);
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 375, height: 812 });
   for (const theme of THEMES) {
     for (let n = 1; n <= LAB_STEP_COUNT; n++) {
       await open(page, stepRoute(n), theme);

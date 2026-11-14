@@ -55,7 +55,7 @@ WEATHER_INFO = {"source": "ECMWF IFS via Open-Meteo Single Runs API", "run_utc":
                 "first_run": "2024-03-14", "variables": list(WX_FEATURES)}
 PREVIOUS_KEYS = ("cost", "baselines", "rows", "date_range", "sklearn_cost",
                  "held_out_probabilities")
-# Penalty scale: lambda/m is the shrink per unit and m is about 11,400 training rows, so
+# Penalty scale: lambda/m is the shrink per unit and m is 4,968 training rows, so
 # lambda below 10 would change nothing visible. 10,000 shrinks the weights hard.
 LAMBDAS = (0.0, 10.0, 100.0, 1000.0, 10000.0)
 # Smaller feature set and smaller lambda first, so a tie goes to the simpler candidate.

@@ -178,11 +178,11 @@ For the same 72 (cell, day) pairs, probability from the cached history against p
 
 <!-- live-vs-history:end -->
 
-### CAMS run availability and the 13:30 UTC choice (measured 2026-11-04, one observation)
+### CAMS run availability and the version 1 choice of 13:30 UTC (measured 2026-11-04, one observation)
 
 Open-Meteo publishes the state of the `cams_global` air-quality domain at `https://air-quality-api.open-meteo.com/data/cams_global/static/meta.json` (fetched 2026-11-04 about 11:35 UTC; the raw copy is `data/raw/cams_meta_2026-11-04.json`, git-ignored). The file reports only the latest run, so this is a single observation, not a distribution. It says the domain updates every 12 hours (`update_interval_seconds` 43200) and that the latest run was initialised at 2026-11-04 00:00 UTC and became available at 2026-11-04 09:43 UTC: a delay of about 9.7 hours.
 
-The daily workflow therefore runs at 13:30 UTC (17:00 Tehran). That is about 3.8 hours after the 00 UTC run was available on the day measured, so the day's 00 UTC run is in hand with room to spare, and 13:30 to 13:36 UTC is the window in which the live inputs were compared with the history above and found identical. An earlier choice of 10:00 UTC would have left only about 17 minutes after the availability seen here, and was never compared against the history. A later or slower CAMS run than the one observed would still have to arrive more than 3.8 hours late to matter. The observation says nothing about days with a delayed run; a run whose inputs are not yet published records gaps rather than inventing values.
+In version 1 the daily workflow therefore ran at 13:30 UTC (17:00 Tehran); version 2 replaced that single time with four tries from 10:30 UTC (see "Weather forecast runs" below). That was about 3.8 hours after the 00 UTC run was available on the day measured, so the day's 00 UTC run was in hand with room to spare, and 13:30 to 13:36 UTC was the window in which the live inputs were compared with the history above and found identical. An earlier choice of 10:00 UTC would have left only about 17 minutes after the availability seen here, and was never compared against the history. A later or slower CAMS run than the one observed would have had to arrive more than 3.8 hours late to matter. The observation says nothing about days with a delayed run; a run whose inputs are not yet published records gaps rather than inventing values.
 
 ## Weather forecast runs
 

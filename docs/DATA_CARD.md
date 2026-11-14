@@ -29,18 +29,23 @@ Version 1's deployed model used five of the fourteen (version 2 is described und
 
 ## From labelled days to model rows
 
+This table and the Splits below are version 1's, which used every row from 2022-09-23. Version 2 adds a weather step (see "Version 2: tomorrow's weather").
+
 | Step | Rows after | Removed |
 |---|---|---|
 | Labelled cell-days | 18,624 | |
 | With a full 12-hour input window | 18,600 | 24 |
 | After removing summer-time days | 18,024 | 576 |
 | After removing rows with incomplete inputs | 18,024 | 0 |
+| Version 2 only: after removing rows without all five weather inputs | 11,544 | 6,480 |
 
 - **24 removed at the start:** the stored series begins at 2022-08-04 00:00 UTC, so the first two labelled days of each cell (2022-08-04 and 2022-08-05) have no complete 12-hour window.
 - **576 removed for summer time (DST-era rows):** Iran used +04:30 summer time until 2022-09-21. On those days the 08:00 UTC stamp is 12:30 local time, past the cutoff, so issue days and target days that are not on +03:30 give no row. That is 48 days in each of the 12 cells. The first row of the dataset is therefore for 2022-09-23.
 - **Missing hours:** 446,976 hours checked (every hour from each cell's first to last stored hour), **0** missing. An hour counts as missing if it is absent or any of the ten inputs is empty. `docs/DATA_PROFILE.md` mentions a 0.008% null share for the first hours seen in the earlier verification probe; the stored history has none.
 
-## Splits
+## Splits (version 1)
+
+These are version 1's parts. Version 2's parts are smaller (training has 4,968 rows); they are under "Version 2: tomorrow's weather".
 
 In time order, by the target date. The model is pooled across the twelve cells, so every cell is in all three parts.
 
@@ -48,7 +53,7 @@ In time order, by the target date. The model is pooled across the twelve cells, 
 |---|---|---|---|---|---|
 | Training | 11,436 | 2022-09-23 | 2025-05-02 | 7.2% | Fits the model; scaling statistics come from these rows only |
 | Selection | 2,208 | 2025-05-03 | 2025-11-02 | 3.8% | Chooses the feature set and the penalty strength |
-| Held-out | 4,380 | 2025-11-03 | 2026-11-02 | 9.1% | Used once, for the reported result |
+| Held-out | 4,380 | 2025-11-03 | 2026-11-02 | 9.1% | Used once for version 1; version 2's held-out result is a second look |
 
 **Limitation of the selection set:** it is one warm half-year (May to early November 2025) with only **85 positive days** out of 2,208. Most of the positive days in this data fall between October and March (see the monthly table below), so the selection months say little about winter behavior. That limits how well settings could be chosen, which is why only two feature sets and five penalty strengths were compared.
 
@@ -189,7 +194,10 @@ The model beats both baselines. scikit-learn fitted on the same rows gives a hel
 
 ```bash
 python -m pipeline.fetch --start 2022-08-04 --end 2026-11-02 --out data/raw/hourly.csv.gz
-python -m training.train      # model/model.json and web/public/data/{profile,history}.json
+python -m pipeline.weather --start 2024-03-14 --end 2026-11-01 --out data/raw/weather.csv.gz
+python -m training.train
 ```
+
+Training writes `model/model.json` and `web/public/data/{profile,history}.json`, and through `training.export_site` also the `lab-*.json` files and `data-page.json`.
 
 The raw data is git-ignored. Re-running changes the stored history and the numbers above only if the source revises its values.

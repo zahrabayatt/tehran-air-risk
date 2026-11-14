@@ -33,8 +33,8 @@ To train the model again or make a forecast you need Python 3.10 or newer:
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # use .venv/bin/python outside Windows
-.venv/Scripts/python -m pipeline.fetch --start 2024-03-14 --end 2026-11-02 --out data/raw/hourly.csv.gz
-.venv/Scripts/python -m pipeline.weather --start 2024-03-14 --end 2026-11-02 --out data/raw/weather.csv.gz
+.venv/Scripts/python -m pipeline.fetch --start 2022-08-04 --end 2026-11-02 --out data/raw/hourly.csv.gz
+.venv/Scripts/python -m pipeline.weather --start 2024-03-14 --end 2026-11-01 --out data/raw/weather.csv.gz
 .venv/Scripts/python -m training.train
 .venv/Scripts/python -m pipeline.predict
 ```

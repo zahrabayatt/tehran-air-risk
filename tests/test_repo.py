@@ -131,6 +131,22 @@ def test_readme_split_matches_the_model_date_ranges():
     assert "March 2024 to May 2025, settings chosen on May to November 2025" in read("README.md")
 
 
+def test_readme_fetch_commands_cover_the_real_history():
+    from datetime import date, timedelta
+    readme = read("README.md")
+    model = json.loads(read("model/model.json"))
+    last_target = date.fromisoformat(model["date_range"]["end"])
+    air = re.search(r"pipeline\.fetch --start (\S+) --end (\S+) --out (\S+)", readme)
+    wx = re.search(r"pipeline\.weather --start (\S+) --end (\S+) --out (\S+)", readme)
+    assert air and wx
+    assert air.group(1) == "2022-08-04" and "2022-08-04" in read("docs/DATA_CARD.md")
+    assert air.group(2) == last_target.isoformat() and air.group(3) == "data/raw/hourly.csv.gz"
+    # The weather end is the last run day: its target is the next day.
+    assert wx.group(1) == "2024-03-14"
+    assert wx.group(2) == (last_target - timedelta(days=1)).isoformat()
+    assert wx.group(3) == "data/raw/weather.csv.gz"
+
+
 def test_readme_has_no_course_scope_or_repository_section_and_real_fetch_commands():
     readme = read("README.md")
     headings = re.findall(r"^#+\s*(.+)$", readme, re.M)

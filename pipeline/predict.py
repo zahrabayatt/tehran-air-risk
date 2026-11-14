@@ -42,7 +42,7 @@ import pandas as pd
 import requests
 
 from pipeline import store
-from pipeline.fetch import POLLUTANTS, WEATHER, FetchError, fetch_hourly
+from pipeline.fetch import POLLUTANTS, TIMEOUT_S as FETCH_TIMEOUT_S, WEATHER, FetchError, fetch_hourly
 from pipeline.grid import CELLS
 from pipeline.weather import WX_FEATURES, RunNotAvailable, fetch_run, weather_inputs
 from training.features import INPUTS, LAST_STAMP_HOUR, WINDOW_HOURS, build_row, on_standard_time, zscore_apply
@@ -62,6 +62,10 @@ EXIT_GAPS = 3
 EXIT_NOT_READY = 4         # some cell is not ready yet and this was not the last try: nothing saved for it
 FINAL_HOUR = 21            # from this Tehran hour a try is the last chance and records gaps
 CAMS_REASON = "CAMS hours up to the cutoff not published yet"
+CAMS_RUN_REASON = "CAMS 00 UTC run not published yet"
+CAMS_META_URL = "https://air-quality-api.open-meteo.com/data/cams_global/static/meta.json"
+META_ATTEMPTS = 3
+META_TIMEOUT_S = FETCH_TIMEOUT_S
 ECMWF_REASON = "ECMWF 00 UTC run not published yet"
 
 
@@ -184,6 +188,31 @@ def fetch_weather(cells: Sequence[dict], day: dt.date, *, get, sleep, deadline=N
     except FetchError as exc:
         return None, f"ECMWF forecast fetch failed: {exc}"
     return weather_inputs(run_frame, day), None
+
+
+def cams_run_reason(day: dt.date, *, get, sleep, attempts: int = META_ATTEMPTS) -> str | None:
+    """Why CAMS is not ready for issue day `day`, or None when its latest run began at or after 00:00 UTC on `day`.
+
+    The air-quality series fills past hours from whichever run covered them, so complete hours do not
+    prove the 00 UTC run of `day` has landed; Open-Meteo's run metadata does. A failed or unreadable
+    metadata request is "not ready" with the failure as the reason, never "ready".
+    """
+    failure = "unknown error"
+    for attempt in range(attempts):
+        try:
+            resp = get(CAMS_META_URL, params={}, timeout=META_TIMEOUT_S)
+            if resp.status_code == 200:
+                started = float(resp.json()["last_run_initialisation_time"])
+                midnight = pd.Timestamp(day, tz="UTC").timestamp()
+                return None if started >= midnight else CAMS_RUN_REASON
+            failure = f"HTTP {resp.status_code}"
+            if resp.status_code != 429 and resp.status_code < 500:
+                break
+        except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+            failure = f"{type(exc).__name__}: {exc}"
+        if attempt + 1 < attempts:
+            sleep(2.0 ** attempt)
+    return f"CAMS run metadata fetch failed: {failure}"
 
 
 def _cams_reason(cell_frame: pd.DataFrame | None, stamps: pd.DatetimeIndex) -> str | None:
@@ -313,13 +342,18 @@ def issue(now=None, *, get: Callable | None = None, sleep: Callable[[float], Non
     clock = clock or time.monotonic
     get, sleep = get or requests.get, sleep or time.sleep
     deadline = clock() + BUDGET_S
-    frame, errors = fetch_cells(pending, day, get=get, sleep=sleep, deadline=deadline, clock=clock)
-    weather, weather_error = fetch_weather(pending, day, get=get, sleep=sleep, deadline=deadline, clock=clock)
-    reasons = readiness(frame, weather, pending, day)
-    for cell_id, reason in reasons.items():
-        if reason == ECMWF_REASON and weather_error:
-            reasons[cell_id] = weather_error
-    reasons.update(errors)                                   # a pollutant fetch that failed for good
+    run_reason = cams_run_reason(day, get=get, sleep=sleep)
+    if run_reason is not None:                               # the CAMS 00 UTC run is not out: fetch nothing else
+        frame, weather = pd.DataFrame(), None
+        reasons = {c["id"]: run_reason for c in pending}
+    else:
+        frame, errors = fetch_cells(pending, day, get=get, sleep=sleep, deadline=deadline, clock=clock)
+        weather, weather_error = fetch_weather(pending, day, get=get, sleep=sleep, deadline=deadline, clock=clock)
+        reasons = readiness(frame, weather, pending, day)
+        for cell_id, reason in reasons.items():
+            if reason == ECMWF_REASON and weather_error:
+                reasons[cell_id] = weather_error
+        reasons.update(errors)                               # a pollutant fetch that failed for good
     wx_rows = {} if weather is None else {r["cell_id"]: r for _, r in weather.iterrows()}
     issued_at, late = store.utc_stamp(now), store.issued_late(target, now)
     entries, waiting = [], {}

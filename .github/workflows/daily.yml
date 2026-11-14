@@ -10,7 +10,9 @@ name: Daily forecast
 # Why four tries: a forecast needs two sources. Open-Meteo's own run metadata, checked 2026-11-12, showed
 # the CAMS 00 UTC run available at 10:06 UTC (10.1 hours after it starts; the check of 2026-11-04 measured
 # 9.7 hours) and the ECMWF 00 UTC run about 06:24 UTC (6.4 hours; the check of 2026-11-03 measured 6.8 hours).
-# Each is one observation, not a guarantee. So the first try at 10:30 UTC usually has both. A try saves a
+# Each is one observation, not a guarantee. CAMS counts as ready only when Open-Meteo's run metadata says
+# its latest run began at or after 00:00 UTC on the issue day (complete hours alone prove nothing: they can
+# be filled from the previous run). So the first try at 10:30 UTC usually has both. A try saves a
 # cell only when both are ready and never changes a saved forecast; a cell that is not ready is left for
 # the next try (exit status 4). The last try (16:30 UTC) is told it is final and records a gap with the
 # reason. GitHub has delayed scheduled runs by up to 9.5 hours, and Tehran midnight is 20:30 UTC: a
@@ -23,7 +25,9 @@ name: Daily forecast
 # for that day. A day with no row means no forecast was recorded; the next day's tries do not backfill it.
 on:
   schedule:
-    - cron: '30 10,12,14,16 * * *'
+    - cron: '30 10,12,14 * * *'
+    # its own entry: github.event.schedule holds the cron string that fired, so the last try is told apart
+    - cron: '30 16 * * *'
   workflow_dispatch:
 
 permissions:
@@ -44,6 +48,7 @@ jobs:
       contents: write
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
+      committed: ${{ steps.commit.outputs.committed }}
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: actions/setup-python@v5.6.0
@@ -100,6 +105,7 @@ jobs:
           else
             git commit -m "chore: update forecasts $(date -u +%F)"
             git push || { git pull --rebase && git push; }
+            echo "committed=true" >> "$GITHUB_OUTPUT"
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -114,6 +120,8 @@ jobs:
 
   build:
     needs: forecast
+    # A try that saved nothing new has nothing to deploy.
+    if: ${{ needs.forecast.outputs.committed == 'true' }}
     runs-on: ubuntu-latest
     # configure-pages needs pages: write (it reads and can enable the Pages site).
     permissions:
@@ -144,6 +152,7 @@ jobs:
 
   deploy:
     needs: build
+    if: ${{ needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     # The same group as pages.yml, so this deploy and a deploy after a push to main never overlap.
     concurrency:

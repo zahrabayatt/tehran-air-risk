@@ -58,15 +58,19 @@ class FakeApi:
     """
 
     def __init__(self, pm25=default_pm25, fail=None, drop=None, null=None, duplicate_stamps=False,
-                 duplicate_shift=0.0, single_status=None):
+                 duplicate_shift=0.0, single_status=None, meta_init=None, meta_status=200):
         self.pm25, self.fail, self.drop, self.null = pm25, fail, drop, null
+        # the CAMS run metadata: `meta_init` is the latest run's initialisation time (unix seconds);
+        # by default a run newer than any issue day, so CAMS is ready
+        self.meta_init, self.meta_status = 4102444800 if meta_init is None else meta_init, meta_status
         self.single_status = single_status
         self.duplicate_stamps, self.duplicate_shift = duplicate_stamps, duplicate_shift
         self.calls = []
 
     @staticmethod
     def kind(url):
-        return {AIR_QUALITY_URL: "air", FORECAST_URL: "hf", LIVE_URL: "live", SINGLE_RUNS_URL: "single"}[url]
+        return {AIR_QUALITY_URL: "air", FORECAST_URL: "hf", LIVE_URL: "live", SINGLE_RUNS_URL: "single",
+                predict.CAMS_META_URL: "meta"}[url]
 
     def value(self, name, cell_id, ts):
         if name == "pm2_5":
@@ -79,6 +83,10 @@ class FakeApi:
     def __call__(self, url, params, timeout=None):
         self.calls.append((url, dict(params)))
         kind = self.kind(url)
+        if kind == "meta":
+            if self.meta_status != 200:
+                return Resp(self.meta_status, "boom")
+            return Resp(200, {"last_run_initialisation_time": self.meta_init, "last_run_availability_time": self.meta_init})
         ids = [BY_COORD[(la, lo)] for la, lo in zip(params["latitude"].split(","), params["longitude"].split(","))]
         if self.fail and self.fail(kind, ids):
             return Resp(500, "boom")
@@ -541,6 +549,44 @@ def test_cams_not_published_yet_waits_with_its_reason(tmp_path):
     assert len(entries) == 12 and all(e["gap"] and e["gap_reason"].startswith("CAMS hours up to the cutoff") for e in entries)
 
 
+def unix(stamp):
+    return int(pd.Timestamp(stamp).timestamp())
+
+
+def test_cams_old_run_is_not_ready_even_with_complete_hours(tmp_path):
+    api = FakeApi(meta_init=unix("2026-11-02T12:00:00Z"))          # the 12 UTC run of D-1 is the newest
+    tried, entries = waiting(tmp_path, api)
+    assert entries == [] and len(tried.waiting) == 12
+    assert set(tried.waiting.values()) == {"CAMS 00 UTC run not published yet"}
+    assert api.urls("air") == [] and api.urls("single") == []       # nothing else is fetched or saved
+    assert not (tmp_path / "predictions.json").exists()
+    assert predict.status(tried) == 4
+
+
+def test_cams_run_at_midnight_utc_is_ready(tmp_path):
+    api = FakeApi(meta_init=unix("2026-11-03T00:00:00Z"))
+    tried, entries = waiting(tmp_path, api)
+    assert len(entries) == 12 and not tried.waiting and all(not e["gap"] for e in entries)
+
+
+def test_cams_meta_failure_is_not_ready_with_its_reason(tmp_path):
+    api = FakeApi(meta_status=500)
+    tried, entries = waiting(tmp_path, api)
+    assert entries == [] and len(tried.waiting) == 12
+    assert all(r.startswith("CAMS run metadata fetch failed") and "500" in r for r in tried.waiting.values())
+    assert len(api.urls("meta")) == predict.META_ATTEMPTS
+    boom = lambda url, params, timeout=None: (_ for _ in ()).throw(__import__("requests").ConnectionError("down"))
+    assert predict.cams_run_reason(pd.Timestamp(ISSUE).date(), get=boom, sleep=Sleeper()).startswith(
+        "CAMS run metadata fetch failed")
+
+
+def test_final_try_with_an_old_cams_run_records_the_gap(tmp_path):
+    api = FakeApi(meta_init=unix("2026-11-02T12:00:00Z"))
+    tried, entries = waiting(tmp_path, api, now=pd.Timestamp("2026-11-03T16:30:00Z"), final=True)
+    assert len(entries) == 12 and all(e["gap"] and e["gap_reason"] == "CAMS 00 UTC run not published yet" for e in entries)
+    assert predict.status(tried) == 3
+
+
 def test_partial_weather_waits_then_gaps(tmp_path):
     # the run is published, but two squares have nothing in it yet
     api = FakeApi(null=lambda kind, c, name, t: kind == "single" and c in ("far-east", "far-west"))
@@ -661,6 +707,27 @@ def test_workflow_passes_final_on_the_last_cron_try_and_treats_exit_4_as_a_warni
     block = step_block(text, "Issue today's forecast")
     assert '"$status" -eq 4' in block and "::warning::" in block
     assert "--final" in block and "github.event.schedule" in block and "30 16 * * *" in block
+
+
+def test_workflow_has_two_schedule_entries_and_only_the_last_is_final():
+    """github.event.schedule holds the cron string of the entry that fired, so the last try needs its own entry."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    crons = re.findall(r"^\s*- cron: '([^']+)'", text, flags=re.M)
+    assert crons == ["30 10,12,14 * * *", "30 16 * * *"]
+    block = step_block(text, "Issue today's forecast")
+    assert '[ "$SCHEDULE" = "30 16 * * *" ]' in block and "--final" in block
+    assert block.count("--final") == 1
+    assert crons.count("30 16 * * *") == 1                        # the other entry never equals the final string
+
+
+def test_workflow_skips_build_and_deploy_when_nothing_was_committed():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "committed: ${{ steps.commit.outputs.committed }}" in text
+    assert 'echo "committed=true" >> "$GITHUB_OUTPUT"' in step_block(text, "Commit predictions")
+    build = text[text.index("\n  build:"):text.index("\n  deploy:")]
+    assert "needs.forecast.outputs.committed == 'true'" in build.split("steps:")[0]
+    deploy = text[text.index("\n  deploy:"):]
+    assert "needs.build.result == 'success'" in deploy.split("steps:")[0]
 
 
 # ------------------------------------------------------------------ outcomes (ruling 7)
@@ -819,7 +886,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "daily.yml"
 
 def test_workflow_schedule_commit_scope_and_deploy():
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "cron: '30 10,12,14,16 * * *'" in text and "workflow_dispatch:" in text
+    assert "cron: '30 10,12,14 * * *'" in text and "cron: '30 16 * * *'" in text and "workflow_dispatch:" in text
     assert "10:06" in text and "06:24" in text and "20:30 UTC" in text
     assert "python -m pipeline.predict" in text and "python -m pipeline.fill_outcomes" in text
     assert text.count("git add") == 1 and "git add data/predictions.json" in text
@@ -836,7 +903,7 @@ def test_workflow_schedule_commit_scope_and_deploy():
 
 def test_cron_matches_the_schedule_the_lab_displays():
     """The Lab displays the first of the daily tries, which is the first hour of the workflow's cron."""
-    cron = re.search(r"cron: '(\d+) ([\d,]+) \* \* \*'", WORKFLOW.read_text(encoding="utf-8"))
+    cron = re.search(r"cron: '(\d+) ([\d,]+) \* \* \*'", WORKFLOW.read_text(encoding="utf-8"))   # the first entry
     minute, hour = int(cron.group(1)), int(cron.group(2).split(",")[0])
     config = (ROOT / "web" / "src" / "config.ts").read_text(encoding="utf-8")
     assert re.search(rf"DAILY_RUN_UTC = '{hour:02d}:{minute:02d}'", config)

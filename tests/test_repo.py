@@ -172,7 +172,8 @@ def test_readme_and_data_card_numbers_match_the_profile():
 
 
 def test_daily_cron_tries_four_times():
-    assert "cron: '30 10,12,14,16 * * *'" in read(".github/workflows/daily.yml")
+    text = read(".github/workflows/daily.yml")
+    assert "cron: '30 10,12,14 * * *'" in text and "cron: '30 16 * * *'" in text
 
 
 def test_a_day_with_no_row_is_documented_and_availability_figures_are_dated():

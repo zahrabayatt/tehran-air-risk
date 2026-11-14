@@ -99,7 +99,7 @@ export function mount(ctx) {
     $('heldv').textContent = fmt(c.held_out, 4);
     const bo = bs.overall.held_out_cost,
       bm = bs.monthly.held_out_cost,
-      pc = [...new Set([c.held_out / bo, c.held_out / bm].map((v) => Math.round(v * 100)))];
+      pc = [...new Set([c.held_out / bo, c.held_out / bm].map((v) => Math.round(v * 100)))].sort((x, y) => x - y);
     $('whyNote').innerHTML = `The held-out year costs more than the choosing months mostly because it holds a whole winter, when unhealthy days are common, while May to November is mostly clean air. Against simple guesses on the same year: giving every day the same chance (${fmt(bs.overall.rate * 100, 1)}%) costs <b>${fmt(bo, 4)}</b>, and each month's usual chance costs <b>${fmt(bm, 4)}</b>. The model's cost is about ${pc.join('% to ')}% of either.`;
     $('relNote').textContent = `All ${num(r.held_out)} held-out rows, grouped by the chance the model gave. Bigger dot, more days. On the dashed line, "3 in 10" would mean exactly 3 in 10 came. Click a dot or a bar to see that group.`;
     $('myv').textContent = fmt(c.held_out, 4);

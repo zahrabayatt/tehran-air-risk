@@ -184,7 +184,7 @@ export function mount(ctx) {
         )
         .join('') + `<p class="small" style="margin:0">Bars start at ${lo.toFixed(3)} to show the differences.</p>`;
     const pct = Math.round((1 - best('all_wx').selection_cost / best('all').selection_cost) * 100);
-    $('ladderNote').textContent = `Weather lowers the cost by about ${pct}%. On a quiet half-year that is a likely gain, not a sure one: in resamples of whole days it won 86% of the time. It is kept because it is the one input that can see tomorrow's air change. Adding inputs always lowers the training cost, so the real test is on days the model has never seen: steps 14 to 16.`;
+    $('ladderNote').textContent = `Weather lowers the cost by about ${pct}%. On a quiet half-year that is a likely gain, not a sure one: in the earlier weather check, which compared the weather model with version 1's inputs on the same choosing months, the weather model came out ahead in 86% of 2,000 resamples of whole days. It is kept because it is the one input that can see tomorrow's air change. Adding inputs always lowers the training cost, so the real test is on days the model has never seen: steps 14 to 16.`;
   }
 
   const buttons = document.querySelectorAll('#main #vseg button');

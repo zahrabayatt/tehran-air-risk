@@ -354,7 +354,10 @@
 }
 .lab .verdict.over {
   background:rgba(210,60,60,.16);
-  color:var(--bad);
+  color:#a52a1d;
+}
+:root[data-theme='dark'] .lab .verdict.over {
+  color:#ff9a9a;
 }
 .lab .key {
   display:inline-flex;
@@ -1506,6 +1509,14 @@
 }
 .lab .ls-17 .wrapt {
   overflow-x:auto;
+}
+.lab .ls-17 .split.wide {
+  grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);
+}
+@media (max-width:900px) {
+  .lab .ls-17 .split.wide {
+    grid-template-columns:minmax(0,1fr);
+  }
 }
 
 /* step 12 colours */

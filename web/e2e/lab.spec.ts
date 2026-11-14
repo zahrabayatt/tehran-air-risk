@@ -199,3 +199,81 @@ test('Lab step 12 compares scaled and raw inputs', async ({ page }) => {
   await expect(page.locator('#rcS')).toContainText('Within 1% of the best since step 180');
   await expect(page.locator('#verdict')).toContainText('Scaled');
 });
+
+const readData = (name: string) => JSON.parse(readFileSync(join(process.cwd(), `public/data/${name}.json`), 'utf8'));
+
+test('Lab step 13 names three similar mornings and ranks the input sets from the data', async ({ page }) => {
+  const model = readData('model');
+  await page.goto('#/lab/13');
+  await expect(page.locator('#trio .flat')).toHaveCount(3);
+  const note = await page.locator('#trioNote').innerText();
+  const pm = [...note.matchAll(/\((\d+), (\d+), (\d+) /g)][0].slice(1).map(Number);
+  expect(pm).toHaveLength(3);
+  for (const v of pm) {
+    expect(v).toBeGreaterThanOrEqual(38);
+    expect(v).toBeLessThanOrEqual(48);
+  }
+  const rungs = page.locator('#ladder .rung');
+  await expect(rungs).toHaveCount(5);
+  await expect(rungs.first()).toContainText(model.previous.cost.selection.toFixed(4));
+  await expect(page.locator('#ladder .rung.live')).toContainText(model.cost.selection.toFixed(4));
+  await expect(page.locator('#ladder .rung.live')).toContainText('the weather model');
+  const best = (fs: string) => Math.min(...model.candidates.filter((c: { feature_set: string }) => c.feature_set === fs).map((c: { selection_cost: number }) => c.selection_cost));
+  const pct = Math.round((1 - best('all_wx') / best('all')) * 100);
+  await expect(page.locator('#ladderNote')).toContainText(`Weather lowers the cost by about ${pct}%`);
+  await expect(page.locator('#ladderNote')).toContainText('86%');
+  await page.getByRole('button', { name: 'On a circle' }).click();
+  await expect(page.locator('#yr circle').first()).toBeVisible();
+});
+
+test('Lab step 14 shows degree 9 on 60 days as overfit', async ({ page }) => {
+  await page.goto('#/lab/14');
+  await expect(page.locator('#verdict')).toHaveText(/Underfit|Just right|Overfit/, { timeout: 15000 });
+  await page.locator('#deg').fill('9');
+  await expect(page.locator('#verdict')).toHaveText('Overfit');
+  await expect(page.locator('#ns button.on')).toHaveText('60');
+  await expect(page.locator('#wnote')).toContainText('new-days cost rose');
+});
+
+test('Lab step 15 has the lambda ticks and lambda 0.01 is just right', async ({ page }) => {
+  const model = readData('model');
+  await page.goto('#/lab/15');
+  await expect(page.locator('.ticks')).toHaveText(/none\s*0\.0001\s*0\.001\s*0\.01\s*0\.1\s*1\s*10/);
+  await page.locator('#lam').fill('3');
+  await expect(page.locator('#verdict')).toHaveText('Just right');
+  const wx = model.candidates.filter((c: { feature_set: string }) => c.feature_set === 'all_wx');
+  await expect(page.locator('#live .wr')).toHaveCount(wx.length);
+  await expect(page.locator('#live')).toContainText(`${model.cost.selection.toFixed(4)} chosen`);
+  await expect(page.locator('#liveNote')).toContainText(wx[0].selection_cost.toFixed(4));
+});
+
+test('Lab step 16 reads version 2 and the scikit-learn tile matches the held-out cost', async ({ page }) => {
+  const model = readData('model');
+  await page.goto('#/lab/16');
+  await expect(page.locator('#heldv')).toHaveText(model.cost.held_out.toFixed(4));
+  await expect(page.locator('#skv')).toHaveText(model.cost.held_out.toFixed(4));
+  expect(Math.abs(model.sklearn_cost.held_out - model.cost.held_out)).toBeLessThan(5e-5);
+  await expect(page.locator('#skv')).toHaveText(model.sklearn_cost.held_out.toFixed(4));
+  await expect(page.locator('#trainv')).toHaveText(model.cost.train.toFixed(4));
+  await expect(page.locator('#selv')).toHaveText(model.cost.selection.toFixed(4));
+  await expect(page.locator('.time')).toContainText(model.rows.held_out.toLocaleString('en-US'));
+  await expect(page.locator('#cautious')).toContainText('in 10');
+  await page.locator('#hist .hb').nth(5).click();
+  await expect(page.locator('#bincard h3')).toContainText('Said 5 to 6 in 10');
+});
+
+test('Lab step 17 adds up to z and the sigmoid gives the chance of the data', async ({ page }) => {
+  const t = readData('lab-today');
+  await page.goto('#/lab/17');
+  await expect(page.locator('#t tr')).toHaveCount(t.features.length + 2);
+  const z = t.x.map((v: number, j: number) => ((v - t.mu[j]) / t.sigma[j]) * t.w[j]);
+  const sum = z.reduce((a: number, b: number) => a + b, 0);
+  const zz = sum + t.b;
+  expect(1 / (1 + Math.exp(-zz))).toBeCloseTo(t.p, 3);
+  await expect(page.locator('#kvsum')).toHaveText(sum.toFixed(3).replace('-', '−'));
+  await expect(page.locator('#kvz')).toHaveText(zz.toFixed(3).replace('-', '−'));
+  await expect(page.locator('#kvp')).toHaveText((1 / (1 + Math.exp(-zz))).toFixed(3));
+  await expect(page.locator('#kvp')).toHaveText(t.p.toFixed(3));
+  await expect(page.locator('#co')).toContainText(`${Math.round(t.p * 10)} in 10`);
+  await expect(page.locator('#co')).toContainText(t.actual > 35.4 ? 'unhealthy' : 'OK');
+});

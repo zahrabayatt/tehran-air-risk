@@ -12,7 +12,7 @@ export const html = `<div id="main" class="skel" aria-busy="true">
     <section class="card" aria-labelledby="st">
       <span class="tag">Step 11 of 17</span>
       <h2 id="st">Learning rate</h2>
-      <p class="goal">α sets how big each step down the cost is. Race several values on the same 4,968 days, from the same start, and see which one gets lowest fastest.</p>
+      <p class="goal">α sets how big each step down the cost is. Race several values on the same <span id="ndays">…</span> days, from the same start, and see which one gets lowest fastest.</p>
       <div class="player" role="group" aria-label="Training controls">
    <div class="prow"><button id="play" class="play" type="button" aria-label="Start the race">${ICON_PLAY}</button>
     <button id="step" class="ibtn" type="button" aria-label="One step">${ICON_STEP}<span>Step</span></button>
@@ -326,6 +326,7 @@ export function mount(ctx) {
       Zs = zapply(X, zfit(X));
     Yv = rowCol(Rw.train, 'y');
     m = Zs.length;
+    $('ndays').textContent = num(m);
     n = COLS.length;
     // The race is a few hundred million multiplications: let the skeleton paint first, then compute.
     setTimeout(() => {

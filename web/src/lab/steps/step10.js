@@ -58,6 +58,7 @@ const INFO = {
   wx_precip: ['Forecast rain', 'mm'],
   wx_blh: ['Forecast air ceiling', 'm'],
 };
+const WORDS = { 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten' };
 const fm = (v, d = 2) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
 const dateOf = (doy) => {
   const d = new Date(Date.UTC(2025, 0, 1));
@@ -145,7 +146,7 @@ export function mount(ctx) {
   function shapes(rows) {
     const nn = n();
     $('vhead').textContent = `One day, ${nn} inputs`;
-    $('vnote').textContent = `Weights and scaling are version 2's, the model live today, trained on these ${nn} inputs. Eight West Tehran training days, from clean to dirty. The highest hour of PM2.5 gets the largest weight: a sharp morning peak says more about tomorrow than the day's average.`;
+    $('vnote').textContent = `Weights and scaling are version 2's, the model live today, trained on these ${nn} inputs. ${WORDS[DAYS.length] || DAYS.length} ${V.cell} training days, from clean to dirty. The highest hour of PM2.5 gets the largest weight: a sharp morning peak says more about tomorrow than the day's average.`;
     $('shnote').textContent = `The same dot product for every day is one matrix product: ${num(rows)} rows of ${nn} numbers times ${nn} weights gives ${num(rows)} values of z, and the sigmoid turns each into a chance.`;
     $('shapes').innerHTML = `<div class="mat" style="width:120px;height:150px">X<br>${num(rows)} × ${nn}</div><span class="op">·</span><div class="mat" style="width:34px;height:120px">w<br>${nn}</div><span class="op">+ b =</span><div class="mat" style="width:50px;height:150px">z<br>${num(rows)}</div>`;
     const v = V.vec,

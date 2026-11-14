@@ -239,6 +239,9 @@ export const EXPLANATIONS: Record<string, Record<string, string>> = {
   },
 
   split_by_time: {
+    "    The held-out set is the final 12 calendar months (target_date later than the last target": "The held-out set is the last 12 months of days, cut by date and never at random.",
+    "    date minus 12 months), selection is the 6 months before that, train is everything earlier.": "The 6 months before it choose the inputs and λ; every earlier day trains the weights.",
+    "    Every cell stays in all three parts; the model is pooled across cells.": "Every square appears in all three parts, so one model learns from all of them.",
     "def split_by_time(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:": "Cuts all days into three parts by date, oldest first.",
     "    \"\"\"(train, selection, held_out) by `target_date`, oldest to newest with no overlap.": "Training, then selection, then held-out: never shuffled.",
     "    if df.empty:": "Nothing to split?",
@@ -344,6 +347,8 @@ export const EXPLANATIONS: Record<string, Record<string, string>> = {
   },
 
   probability_bins: {
+    "    \"\"\"Counts of held-out probabilities in ten bins, split by the true label.": "For each band of chances the model gave, count the days that turned unhealthy and the days that did not.",
+    "    Bins are [0, 0.1), [0.1, 0.2), ..., [0.9, 1.0]; the last includes 1.": "Ten bands of width 0.1; a chance of exactly 1 goes in the last one.",
     "def probability_bins(p, y, edges=PROBABILITY_BINS) -> dict:": "Counts the held-out probabilities in ten bins of width 0.1, separately for the days that were unhealthy and the days that were not.",
     "    p, y = np.asarray(p, dtype=float), np.asarray(y)": "The model's chances and the true labels as arrays.",
     "    return {\"bins\": list(edges),": "The bin edges: 0.0, 0.1, ... 1.0.",
